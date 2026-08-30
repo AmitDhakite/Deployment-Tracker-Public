@@ -1,0 +1,2396 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deployment Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23e24bb4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M7 21l5-6 4 3 5-8' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  /* ============================================================
+     Tokens — "liquid glass" on a violet→magenta→pink ramp, built to stay cheap.
+
+     Performance rules this sheet follows, because the first pass was
+     laggy for exactly these reasons:
+       · NO backdrop-filter, anywhere, at any size. Not on repeated elements
+         (cards, panels, buttons) and not on the modal .backdrop either — a
+         viewport-sized blur is re-run by the compositor whenever the modal
+         above it repaints, which measured 94ms/frame while typing against
+         3.4ms with it off.
+       · ALPHA MUST EARN ITSELF. It forbids occlusion culling, so the .aura
+         wash gets re-blended under every translucent surface. The rule used to
+         be "opaque, never 0.9x alpha" and it was right about the specific thing
+         it was aimed at: alpha you cannot SEE is pure cost. The grid is
+         translucent now because you can see it — the wash was extended down the
+         viewport so a card genuinely shows something through itself, and Lite
+         takes the alpha back out in one click. What is still banned outright is
+         alpha on anything that moves or on a sticky bar.
+       · NO animated blur. The ambient wash is a static gradient painted
+         once, not three animated blur(70px) blobs forcing every glass
+         surface to recompute its blur every frame.
+       · NO filters on live DOM — not SVG ones and not even a cheap
+         brightness(). Any filter gives the element its own render surface for
+         as long as it applies, so the primary button's hover lift is a
+         brighter gradient, not a brightness() pass. Every card carries one of
+         those buttons, so this is not a corner case: it is the hot path.
+         A filter inside a background-image data URI is a DIFFERENT
+         THING and is allowed: that SVG is an immutable image resource, so
+         feGaussianBlur runs once at decode and the result is cached as a
+         texture. That is how .aura gets a genuinely soft ribbon without
+         paying for a blur per frame. This used to say "zero RasterTasks across
+         a full-page scroll" and that is no longer true — it was measured when
+         the grid was opaque. Re-measured 2026-08-30 with the grid translucent:
+         a full-page scroll rasters 250 tiles / ~460ms in glass against 51 /
+         ~102ms in lite, and typing 12 chars 169 / ~298ms against 98 / ~100ms.
+         Both figures reproduced exactly with the skin order reversed, so it is
+         not a warm-up artifact. The ribbon is NOT what costs: lite keeps .aura
+         untouched and varies only the alpha on the surfaces, so that 5x is the
+         price of the translucency itself. It is worth paying by default only
+         because lite exists — which is why lite ships ON.
+       · STATIC IS FREE. An elaborate background costs nothing once painted,
+         while a cheap thing that moves costs every frame. Spend on texture,
+         never on motion. This was first written for a streamed desktop, where
+         the bill is literally changed pixels; the target is now a personal
+         machine and a phone, and it holds there for a different reason — a
+         phone pays for repaints in battery.
+       · Translucency is GRADED, not rationed away. The hero and the modal are
+         the thinnest (--frost-*, they never scroll); the grid is denser
+         (--card-*, ~.8 alpha, enough to tint but not enough to lose 12px muted
+         text); the sticky header stays fully opaque, because you would
+         otherwise be reading card text through it.
+       · NO transitioned box-shadow. Animating a wide blur repaints the
+         element and its backdrop every frame; hover animates transform
+         (compositor-only) and swaps the deeper shadow in one paint.
+       · Text contrast is measured on the COMPOSITED surface, not on the token.
+         Once a card is translucent, --surface-solid is no longer what you are
+         reading text on, so every ratio quoted below was taken by screenshotting
+         the bare surface over the wash and sampling the pixels.
+
+     Colours are validated, not decorative: the link blue is measured on
+     --surface-solid in both themes, and it is the one hue that is neither chrome
+     nor status, precisely so it can never be mistaken for a status step or for a
+     button. White-on-magenta chrome is built on --accent-deep rather than
+     --accent so the label clears AA at the gradient's lightest stop, which is
+     :hover — lighter than anything in the resting state, and the point a
+     mid-tone average would hide.
+
+     Status colours are FILLS and are held apart from chrome on purpose: the
+     ladder is amber → vermilion → red, none of which appear in the chrome ramp
+     now that chrome is violet→pink, so a badge can never read as decoration.
+     An icon disc's glyph is measured against the disc, which is why amber is
+     the one disc that takes dark ink instead of white — at luminance 0.52 no
+     white glyph clears AA on it without darkening it out of being amber.
+     ============================================================ */
+  :root {
+    color-scheme: light;
+    --page:          #fbf5fd;
+    --page-2:        #f5e7fb;
+    /* the opaque reference surface every ratio below is quoted against */
+    --surface-solid: #fefcff;
+    /* Opaque, not 0.97/0.92 alpha. These are the colours that alpha already
+       blended to over the wash, so nothing looks different — but any alpha at
+       all rules out every optimisation that needs a surface to be opaque,
+       including skipping the .aura underneath. Free to give up. */
+    --surface-1:     #fefcff;
+    --surface-1b:    #fbf6fe;
+    --inset:         rgba(58,14,72,0.05);
+
+    --text-primary:  #140818;
+    --text-secondary:#4c3f55;
+    --text-muted:    #6a5f72;   /* 4.6:1 — small text needs it */
+    --gridline:      #eae0f1;
+    --baseline:      #cec0d8;
+    --border:        rgba(58,14,72,0.10);
+
+    /* Link blue. It has to be the one hue that is neither chrome nor status:
+       amber through red are the four status steps, so the whole warm half is
+       spoken for, and magenta and violet are chrome. Blue is what is left, and
+       it is far enough from the magenta ramp that a link never reads as a
+       button. It used to also draw the price chart — the charts are gone, but
+       the reasoning for the hue is unchanged. Measured, not assumed. */
+    --series-1:      #3a5ecc;   /* 5.6:1 on --surface-solid (measured) */
+    /* Two magentas, because one cannot do both jobs. --accent is the bright
+       one: rims, focus rings, hover tints, the ribbon's ambient blooms, all
+       places nothing has to be read on top of it. --accent-deep is the fill
+       under WHITE TEXT — the primary button and the selected tab. The bright
+       magenta carries white 13px text at about 3.2:1, under AA, so the fill is
+       the deep one and the bright one is kept for the top sheen and the outer
+       glow, where it costs nothing to read.
+
+       The button gradient's LIGHTEST stop is the number that matters, and it is
+       not --accent-deep itself: :hover opens to color-mix(--accent-deep 62%,
+       --accent), lighter than anything in the resting state. White measures
+       5.23:1 there, 5.62 on the resting top stop, 6.64 on the solid. */
+    --accent:        #e24bb4;   /* bright purplish pink */
+    --accent-deep:   #a3208f;   /* the fill under white text */
+    --accent-2:      #a855f7;   /* violet — chrome gradients and glow only */
+    --st-good:       #0ca30c;
+    --st-warning:    #fab219;
+    --st-serious:    #e2622f;   /* deepened from #ec835a: the ladder now reads
+                                   amber -> vermilion -> red as a clear
+                                   escalation, and sits away from the chrome */
+    --st-critical:   #d03b3b;
+    /* The "not started yet" / "no budget" state. This used to pass --text-muted
+       in as --st, but --st is a FILL and --text-muted is a text colour that
+       INVERTS between themes — so in dark mode the icon disc became a pale grey
+       plate under a white glyph and measured 1.75:1. A fill has to be a fill:
+       one warm neutral, same in both themes, dark enough to carry white. */
+    --st-idle:       #6b5f60;
+    /* --st-critical is a FILL: it tints the status pill and fills the icon disc
+       under a white glyph, so it has to stay dark. As TEXT on a surface it only
+       measured 3.68:1 in dark mode, so lapsed amounts and the delete affordance
+       use this darker sibling instead. A fill and an ink are not one token. */
+    --danger-text:   #c2202b;   /* 5.5:1 on --surface-solid */
+    /* Same story one rung down the ladder: --st-serious as ink measured 3.42:1
+       here, because a mid-luminance orange has nowhere to go on a near-white
+       surface. The sync badge's "not pushed" state uses this. */
+    --warn-text:     #b44a0c;   /* 5.24:1 on --surface-solid */
+    --ghost:         rgba(58,14,72,0.045);
+
+    /* Glass rim. Two lit corners with a dark middle, not an even outline —
+       that asymmetry is what makes a rounded rectangle read as a lens catching
+       light from one side instead of a card with a border. */
+    --rim: linear-gradient(148deg,
+             rgba(255,255,255,0.98) 0%,
+             rgba(255,255,255,0.42) 26%,
+             rgba(58,14,72,0.08)   52%,
+             rgba(58,14,72,0.12)   78%,
+             rgba(255,255,255,0.55) 100%);
+    /* the water-drop specular, folded into the surface fill so it costs
+       no extra layer */
+    --sheen: radial-gradient(120% 78% at 20% -20%,
+               rgba(255,255,255,0.95), rgba(255,255,255,0) 60%);
+    --lip:     rgba(255,255,255,0.85);
+    --lip-low: rgba(58,14,72,0.05);
+
+    --sh-sm: 0 1px 2px rgba(64,16,78,0.06);
+    --sh-md: 0 1px 2px rgba(64,16,78,0.06), 0 10px 24px -10px rgba(64,16,78,0.20);
+    --sh-lg: 0 1px 2px rgba(64,16,78,0.07), 0 22px 48px -16px rgba(64,16,78,0.30);
+    --glow: 0.32;
+
+    /* Glass over light needs a paler, higher-alpha frost or the text loses its
+       footing; over dark it can be far more transparent. */
+    --frost-a: rgba(255,255,255,0.66);
+    --frost-b: rgba(255,255,255,0.52);
+    --refract-1: rgba(255,105,205,0.16);
+    --refract-2: rgba(185,120,255,0.15);
+    /* The scrolling grid's own frost — the same idea as --frost-* but denser,
+       because a card carries 12px muted text over whatever the wash happens to
+       be doing beneath it while the hero carries a 52px figure. High enough to
+       read as "a little translucent" rather than as a hole in the page. */
+    --card-a: rgba(254,252,255,0.80);
+    --card-b: rgba(249,243,253,0.71);
+    --refract-card: rgba(240,130,225,0.11);
+    /* the lit far edge, the cue that says a pane has THICKNESS — .lens has a
+       stronger version of the same shadow, this is the grid's share of it */
+    --inner-edge: rgba(255,255,255,0.55);
+    --dim: rgba(38,10,52,0.54);
+    /* raised from 0.34 once the grid went translucent: at a third opacity the
+       light wash had almost nothing left to show THROUGH a card */
+    --ribbon-op: 0.52;
+
+    --radius: 20px;
+    --radius-lg: 26px;
+    --radius-sm: 12px;
+
+    /* ------------------------------------------------------------------
+       The ribbon. One SVG, used as a background-image, so its feGaussianBlur
+       is resolved once when the image is decoded and then lives as a cached
+       texture — a soft curved band of light for the price of a static bitmap,
+       which is the only way to have this look and still be smooth over a
+       streamed desktop. Four strokes on two paths: a wide bloom, a tighter
+       core, a pale specular edge riding just above the core (that offset is
+       what makes it look like a lit surface rather than a coloured smear),
+       and two dim blooms in the side margins for balance.
+
+       Gradient #r runs deep violet -> purple -> orchid -> hot pink -> pale
+       pink along the band, and the margin blooms take their own gradient #m,
+       pink at the top falling to deep violet. Every hue in here is chrome; none
+       of it is a status step, which is the whole reason the status ladder can
+       stay amber -> vermilion -> red without competing.
+
+       WHERE it goes was the original design constraint, and it has since
+       relaxed: the cards used to be opaque, so anywhere the band passed behind
+       the grid it was sliced off at a card's straight edge and looked like a
+       mistake. That is why the bright section crosses the top strip only,
+       behind the hero, and exits off the top-right corner with its palest end
+       already out of frame so nothing on screen blows out. The grid is
+       translucent now and the extra blooms on .aura are there precisely so a
+       card has something to transmit — but the band itself still keeps to the
+       top strip and the margins, because a hard diagonal crossing a column of
+       cards reads as a seam no matter how much alpha they have.
+       ------------------------------------------------------------------ */
+    --ribbon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000'><defs><linearGradient id='r' x1='0' y1='1' x2='1' y2='0'><stop offset='0' stop-color='%23360a5c'/><stop offset='.26' stop-color='%236a12b0'/><stop offset='.50' stop-color='%23b02fd8'/><stop offset='.72' stop-color='%23ff4fbe'/><stop offset='.89' stop-color='%23ff9ad8'/><stop offset='1' stop-color='%23ffe2f6'/></linearGradient><linearGradient id='m' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='%23ff5fd0'/><stop offset='.55' stop-color='%23a020c8'/><stop offset='1' stop-color='%23470f6d'/></linearGradient><filter id='w' x='-35%25' y='-35%25' width='170%25' height='170%25'><feGaussianBlur stdDeviation='62'/></filter><filter id='n' x='-25%25' y='-25%25' width='150%25' height='150%25'><feGaussianBlur stdDeviation='15'/></filter></defs><g fill='none' stroke-linecap='round'><path stroke='url(%23r)' d='M-240 300 C 180 240 400 120 700 50 C 1000 -20 1320 -30 1800 -170' stroke-width='200' opacity='.46' filter='url(%23w)'/><path stroke='url(%23r)' d='M-240 300 C 180 240 400 120 700 50 C 1000 -20 1320 -30 1800 -170' stroke-width='56' opacity='.82' filter='url(%23n)'/><path stroke='url(%23m)' d='M-120 260 C -40 520 60 720 -20 1080' stroke-width='260' opacity='.30' filter='url(%23w)'/><path stroke='url(%23m)' d='M1660 420 C 1560 620 1620 840 1560 1120' stroke-width='260' opacity='.26' filter='url(%23w)'/></g><path d='M-240 274 C 180 214 400 94 700 24 C 1000 -46 1320 -56 1800 -196' fill='none' stroke='%23fdeaff' stroke-width='5' opacity='.6' filter='url(%23n)'/></svg>");
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    /* near-black, because a luminous ribbon needs somewhere dark to be
+       luminous against — #0b0713 was already washing the colour out */
+    --page:          #08050d;
+    --page-2:        #170a1e;
+    --surface-solid: #1f1424;
+    /* Opaque, but lifted and pushed violet now that the page behind them is
+       near-black: on #08050d a neutral grey read as dead. These are the
+       colours a thin frost would blend to over the ribbon's dim end, so the
+       cards look like the same material as the hero even where they are opaque. */
+    --surface-1:     #271a2e;
+    --surface-1b:    #1a0f20;
+    --inset:         rgba(0,0,0,0.34);
+
+    --text-primary:  #ffffff;
+    --text-secondary:#d6ccdc;
+    /* lifted TWICE: once for small-text contrast on a solid surface, and again
+       on 2026-08-30 when the grid went translucent. 12px muted text over a
+       card is now read against the card COMPOSITED over the wash, which is
+       lighter than --surface-solid wherever the wash is bright — it measured
+       3.37:1 at #b1a2a4 and 4.7:1 here, worst card in the grid. */
+    --text-muted:    #c3b8c9;
+    --gridline:      #332639;
+    --baseline:      #4d3c56;
+    --border:        rgba(255,255,255,0.11);
+
+    --series-1:      #7aa2ff;   /* 7.1:1 on --surface-solid (measured) */
+    --accent:        #ff5cd0;   /* hot pink — glow and rims only */
+    --accent-deep:   #9c1f86;   /* white text at the lightest stop of the
+                                   gradient built on it — measured below */
+    --accent-2:      #b477ff;
+    --danger-text:   #ff5f5f;   /* 5.8:1 on --surface-solid */
+    /* Lightened rather than darkened, the opposite direction to the light theme —
+       measured 5.93:1 against the LIGHTEST stop of the button's own gradient
+       (39,26,46), not against --surface-solid, which flatters it to 6.38. */
+    --warn-text:     #f07a3a;   /* 5.93:1 worst case on a .btn face */
+    /* controls sunk INTO glass read as darker wells, not lighter ones — the
+       inner pill in the reference is darker than the panel around it */
+    --ghost:         rgba(8,3,12,0.32);
+
+    /* brighter and two-cornered: on near-black the rim is most of what says
+       "glass", since there is no dark side for a shadow to define */
+    --rim: linear-gradient(148deg,
+             rgba(255,255,255,0.58) 0%,
+             rgba(255,255,255,0.16) 24%,
+             rgba(255,255,255,0.03) 50%,
+             rgba(255,255,255,0.04) 74%,
+             rgba(250,214,255,0.42) 100%);
+    --sheen: radial-gradient(120% 78% at 20% -20%,
+               rgba(255,255,255,0.16), rgba(255,255,255,0) 58%);
+    --lip:     rgba(255,255,255,0.17);
+    --lip-low: rgba(0,0,0,0.40);
+
+    --sh-sm: 0 1px 2px rgba(0,0,0,0.55);
+    --sh-md: 0 1px 2px rgba(0,0,0,0.55), 0 12px 28px -12px rgba(0,0,0,0.85);
+    --sh-lg: 0 1px 3px rgba(0,0,0,0.6), 0 24px 54px -18px rgba(0,0,0,0.95);
+    --glow: 0.72;
+
+    /* thin frost over dark: the ribbon should be legible THROUGH the panel,
+       so this is far more transparent than the light-mode equivalent. Raised
+       from .50/.66 on 2026-08-30 — the hero sits exactly where the ribbon is
+       brightest, and measuring against the composited pixels (rather than
+       against --surface-solid, which is what the old audit did and why this
+       was missed) put the 11.5px "WAITING TO BE INVESTED" label at 3.6:1.
+       It is 4.6:1 here and the panel is still visibly a thin pane. */
+    --frost-a: rgba(66,34,80,0.64);
+    --frost-b: rgba(26,11,32,0.76);
+    --refract-1: rgba(255,80,200,0.22);
+    --refract-2: rgba(180,110,255,0.24);
+    --card-a: rgba(56,37,66,0.76);
+    --card-b: rgba(29,18,36,0.83);
+    --refract-card: rgba(240,130,230,0.15);
+    --inner-edge: rgba(246,230,255,0.26);
+    --dim: rgba(6,2,10,0.80);
+    --ribbon-op: 1;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2,h3 { margin: 0; font-weight: 600; }
+  button { font: inherit; }
+  a { color: var(--series-1); }
+  ::selection { background: color-mix(in oklab, var(--accent) 25%, transparent); }
+
+  /* ---------- the ribbon: one fixed layer, painted once, never moved ----------
+     The SVG carries the shape and the softness; the radial gradients under it
+     are the ambient bloom and double as the fallback if the data URI ever
+     fails to parse — you would lose the band but still have a lit page rather
+     than flat black. Nothing here animates, and because the layer is fixed it
+     does not repaint on scroll: the encoder sees these pixels once.
+
+     The middle three stops are new, and they exist because the grid went
+     translucent. The SVG band lives in the top third of the viewport, which was
+     fine while it only had to backdrop the hero; a card that is 16% transparent
+     over flat paint is indistinguishable from an opaque one. So the wash now
+     carries low-frequency colour all the way down the viewport, and since the
+     layer is fixed, a card crossing it picks up a different tint as you scroll
+     — which is the whole reason to make it translucent in the first place.
+     Broad soft ellipses, not detail: a 0.84-alpha frost is a low-pass filter
+     and anything finer than this would be thrown away by it. */
+  .aura {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    opacity: var(--ribbon-op);
+    /* deliberately NOT promoted with translateZ(0): Chrome already gives a
+       fixed element its own layer once scrolling content overlaps it, and
+       forcing a second one measured no better while costing GPU memory */
+    background:
+      var(--ribbon) center / cover no-repeat,
+      radial-gradient(62vw 46vh at 14% 54%, color-mix(in oklab, var(--accent)   21%, transparent), transparent 72%),
+      radial-gradient(54vw 42vh at 92% 70%, color-mix(in oklab, var(--accent-2) 19%, transparent), transparent 70%),
+      radial-gradient(70vw 40vh at 52% 108%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 74%),
+      radial-gradient(50vw 44vw at 4% 96%,  color-mix(in oklab, var(--accent)   18%, transparent), transparent 66%),
+      radial-gradient(46vw 40vw at 96% 2%,  color-mix(in oklab, var(--accent-2) 20%, transparent), transparent 66%),
+      radial-gradient(120% 80% at 50% -10%, var(--page-2), var(--page) 58%);
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 14px 20px 90px; }
+
+  /* ============================================================
+     The glass recipe — sheen + one refraction bloom + frost in a single
+     background, rim on the border box, lip as an inset shadow. Still one
+     paint and still no filters.
+
+     TRANSLUCENT as of 2026-08-30, on the user's call, and they were right:
+     a rim and a sheen alone cannot make a card read as glass, because glass
+     is defined by what you can see THROUGH it. The alpha is deliberately
+     high — .84/.76 over light, .76/.84 over dark — so a card is "a little
+     translucent": the wash's colour pools where the sheen falls off, and each
+     card in the grid takes a slightly different tint from whatever it happens
+     to be sitting over. Text contrast was re-measured against the COMPOSITED
+     surface (screenshot the bare card, sample the pixels) rather than against
+     the token, because the token is no longer what you are reading on.
+
+     What it costs, stated plainly: alpha forbids occlusion culling, so the
+     wash under a card is painted instead of skipped. That is affordable here
+     only because the wash is one FIXED layer that never moves or animates —
+     the pixels are already rasterised, so this is fill-rate on an existing
+     texture, not new raster work. Measured below, and Lite still takes it
+     all back out for anyone who would rather have the frames.
+     ============================================================ */
+  .glass {
+    position: relative;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    background:
+      var(--sheen) padding-box,
+      radial-gradient(130% 160% at 88% -25%, var(--refract-card), transparent 62%) padding-box,
+      linear-gradient(163deg, var(--card-a), var(--card-b)) padding-box,
+      var(--rim) border-box;
+    box-shadow:
+      inset 0 1px 0 var(--lip),
+      inset 0 -1px 0 var(--lip-low),
+      /* light entering the top-left corner surfacing again just inside the far
+         edge — the same trick .lens uses, at about a third of the strength.
+         This is the difference between a tinted panel and a pane of glass, and
+         it is a fourth shadow in a shadow list that was already being painted. */
+      inset 0 0 30px -13px var(--inner-edge),
+      var(--sh-md);
+  }
+  /* The one surface that stays OPAQUE, and not for performance reasons: the
+     header is sticky, so anything transparent about it means the card text
+     scrolling underneath is legible straight through the header's own text.
+     Apple gets away with a translucent bar because it blurs what is behind it;
+     we have no blur to spend, so this bar is solid. */
+  header.top {
+    background:
+      var(--sheen) padding-box,
+      linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
+      var(--rim) border-box;
+  }
+
+  /* ============================================================
+     .lens — the real thing, for the two surfaces that never scroll.
+     A thin frost you can see the ribbon through, plus two colour blooms
+     that continue the ribbon's path across the panel at lower contrast.
+     That second part is the refraction: light bending through the pane
+     rather than stopping at it, and it is baked into the same background
+     shorthand, so it is still one paint and still no filter.
+     ============================================================ */
+  .lens {
+    border-radius: var(--radius-lg);
+    background:
+      var(--sheen) padding-box,
+      radial-gradient(95% 150% at 90% -25%, var(--refract-2), transparent 60%) padding-box,
+      radial-gradient(80% 130% at 4% 125%, var(--refract-1), transparent 58%) padding-box,
+      linear-gradient(148deg, var(--frost-a), var(--frost-b)) padding-box,
+      var(--rim) border-box;
+    box-shadow:
+      inset 0 1px 0 var(--lip),
+      inset 0 -1px 0 var(--lip-low),
+      /* the lit inner edge — a lens has thickness, so the light that enters
+         the top-left corner shows up again just inside the far edge */
+      inset 0 0 34px -14px rgba(255,255,255,.30),
+      var(--sh-lg);
+  }
+
+  /* ---------- header island ---------- */
+  header.top {
+    position: sticky; top: 10px; z-index: 25;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    margin-bottom: 16px; padding: 12px 16px;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand .mark {
+    width: 32px; height: 32px; border-radius: 10px; flex: none; position: relative;
+    background: linear-gradient(145deg, var(--accent), var(--accent-2));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45),
+                0 4px 14px -4px color-mix(in oklab, var(--accent) 70%, transparent);
+  }
+  .brand .mark::after {
+    content: ""; position: absolute; inset: 5px 5px auto 5px; height: 9px;
+    border-radius: 6px 6px 10px 10px;
+    background: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,0));
+  }
+  .brand h1 { font-size: 16px; letter-spacing: -0.015em; }
+  .brand p { margin: 1px 0 0; color: var(--text-muted); font-size: 12px; }
+  .top-actions { margin-left: auto; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    color: var(--text-primary);
+    border: 1px solid transparent; border-radius: 12px;
+    padding: 7px 12px; cursor: pointer; white-space: nowrap;
+    background:
+      linear-gradient(var(--surface-1), var(--surface-1b)) padding-box,
+      var(--rim) border-box;
+    box-shadow: inset 0 1px 0 var(--lip), var(--sh-sm);
+    /* transform only, per the rule at the top of this sheet — the shadow and
+       the brightness lift swap in one paint instead of being animated across
+       sixteen frames on every button the pointer crosses */
+    transition: transform .12s ease;
+  }
+  .btn:hover { box-shadow: inset 0 1px 0 var(--lip), var(--sh-md); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0) scale(.985); }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow: inset 0 1px 0 var(--lip), var(--sh-sm),
+                0 0 0 3px color-mix(in oklab, var(--accent) 42%, transparent);
+  }
+  .btn.primary {
+    color: #fff;
+    /* built on --accent-deep, not --accent: the label is white and it has to
+       clear AA at the gradient's LIGHTEST point, not its average. The hot rose
+       shows up as the top stop and in the glow below. */
+    background: linear-gradient(146deg,
+      color-mix(in oklab, var(--accent-deep) 74%, var(--accent)) 0%,
+      var(--accent-deep) 48%,
+      color-mix(in oklab, var(--accent-deep) 86%, #000) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.40),
+      inset 0 -1px 0 rgba(0,0,0,.14),
+      0 6px 16px -6px color-mix(in oklab, var(--accent) 72%, transparent),
+      0 0 20px -6px color-mix(in oklab, var(--accent-2) calc(var(--glow) * 100%), transparent);
+  }
+  .btn.primary:hover {
+    /* the lift is folded into the gradient rather than done with
+       filter: brightness() — a filter, even a per-pixel one this cheap, gives
+       the button its own render surface for as long as the pointer is on it,
+       and every card carries one of these. Restating the stops costs a paint
+       the changing shadow was going to force anyway. */
+    background: linear-gradient(146deg,
+      color-mix(in oklab, var(--accent-deep) 62%, var(--accent)) 0%,
+      color-mix(in oklab, var(--accent-deep) 84%, var(--accent)) 48%,
+      color-mix(in oklab, var(--accent-deep) 94%, #000) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.48),
+      0 8px 22px -6px color-mix(in oklab, var(--accent) 78%, transparent),
+      0 0 28px -4px color-mix(in oklab, var(--accent-2) calc(var(--glow) * 100%), transparent);
+  }
+  .btn.sm { padding: 5px 10px; font-size: 12.5px; border-radius: 9px; }
+  .btn.danger { color: var(--danger-text); }
+  .btn:disabled { opacity: .45; cursor: default; transform: none; }
+
+  .dot-unsaved {
+    width: 8px; height: 8px; border-radius: 50%; flex: none; display: none;
+    background: var(--st-warning);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--st-warning) 20%, transparent);
+  }
+  body.dirty .dot-unsaved { display: inline-block; }
+
+  /* ---------- hero: the showcase pane, sitting right where the ribbon
+       crosses so there is something to look through ---------- */
+  .hero {
+    padding: 24px 26px; margin-bottom: 18px; overflow: hidden;
+    display: flex; gap: 34px; align-items: flex-end; flex-wrap: wrap;
+  }
+  /* solid, not gradient-clipped: this is the one figure everything hangs
+     off, so it gets full text contrast rather than a fade into the accent */
+  .hero .figure {
+    font-size: 52px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
+    color: var(--text-primary);
+  }
+  .hero .sublabel { color: var(--text-secondary); font-size: 12.5px; margin-top: 4px; }
+  .hero .label { color: var(--text-secondary); font-size: 11.5px; margin-bottom: 3px;
+    text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
+  .hero .side { display: flex; gap: 30px; flex-wrap: wrap; padding-bottom: 6px; }
+  .hero .side .v { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* ---------- tabs: segmented control ---------- */
+  nav.tabs {
+    display: inline-flex; gap: 3px; margin-bottom: 18px; padding: 4px;
+    border-radius: 999px;
+  }
+  nav.tabs button {
+    background: none; border: none; border-radius: 999px;
+    padding: 7px 16px; color: var(--text-secondary); cursor: pointer;
+    transition: color .15s ease, background .16s ease;
+  }
+  nav.tabs button:hover { color: var(--text-primary); background: var(--ghost); }
+  nav.tabs button[aria-selected="true"] {
+    color: #fff; font-weight: 600;
+    background: linear-gradient(146deg,
+      color-mix(in oklab, var(--accent-deep) 74%, var(--accent)),
+      var(--accent-deep) 48%,
+      color-mix(in oklab, var(--accent-deep) 86%, #000));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.38),
+      0 4px 12px -4px color-mix(in oklab, var(--accent) 70%, transparent),
+      0 0 16px -6px color-mix(in oklab, var(--accent-2) calc(var(--glow) * 100%), transparent);
+  }
+
+  /* ---------- cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(370px, 1fr)); gap: 16px; align-items: start; }
+  .card {
+    padding: 16px 17px 13px;
+    display: flex; flex-direction: column; gap: 12px;
+    /* transform only — animating a 48px-blur shadow repaints the card and
+       everything under it for the whole 200ms. The lift reads on its own;
+       the deeper shadow swaps in one repaint instead of sixteen. */
+    transition: transform .16s ease;
+    contain: layout style;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 var(--lip), inset 0 -1px 0 var(--lip-low),
+                inset 0 0 30px -13px var(--inner-edge), var(--sh-lg);
+  }
+
+  .card-head { display: flex; align-items: flex-start; gap: 10px; }
+  .card-head .nm { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
+  .card-head .sub { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .chip {
+    font-size: 11.5px; padding: 2px 8px; border-radius: 999px;
+    background: var(--ghost); border: 1px solid var(--border);
+    color: var(--text-secondary); white-space: nowrap;
+  }
+  /* status: icon + label always — colour never carries it alone */
+  .status {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; padding: 4px 10px 4px 7px;
+    border-radius: 999px; margin-left: auto; white-space: nowrap;
+    color: var(--text-primary);
+    background: linear-gradient(150deg,
+      color-mix(in oklab, var(--st) 20%, var(--surface-solid)),
+      color-mix(in oklab, var(--st) 10%, var(--surface-solid)));
+    border: 1px solid color-mix(in oklab, var(--st) 40%, var(--surface-solid));
+    box-shadow: inset 0 1px 0 var(--lip),
+                0 0 14px -6px color-mix(in oklab, var(--st) calc(var(--glow) * 100%), transparent);
+  }
+  /* The icon disc. It used to LIGHTEN --st toward white (80%/#fff) for a lit
+     look and then put a white glyph on top — measured on the composited pixels
+     that was 2.56:1 green, 2.62 vermilion, 3.32 red and 1.61 amber, i.e. all
+     four states failed, worst of all the one meant to shout. The disc darkens
+     now instead, and the lit look comes from the top lip rather than from
+     bleaching the fill. 84/64 is the mildest darkening where every state clears
+     4.5: green 5.12, vermilion 5.28, red 6.97, idle 8.58. */
+  .status .ic {
+    width: 15px; height: 15px; border-radius: 50%; flex: none;
+    background: linear-gradient(160deg, color-mix(in oklab, var(--st) 84%, #000),
+                                        color-mix(in oklab, var(--st) 64%, #000));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.30);
+    color: #fff; font-size: 10px; line-height: 15px; text-align: center; font-weight: 700;
+  }
+  /* Amber is the one state that has to go the other way, and no amount of
+     tuning changes it: --st-warning sits at luminance 0.52, so a white glyph
+     needs the disc darkened until it is olive and no longer reads as amber at
+     all. Bright disc, dark glyph — 8.09:1, and the hue survives. */
+  .status.st-due .ic {
+    background: linear-gradient(160deg, color-mix(in oklab, var(--st) 88%, #fff), var(--st));
+    color: color-mix(in oklab, var(--st) 34%, #000);
+  }
+
+  .pending-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .pending-row .amt { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .pending-row .since { color: var(--text-secondary); font-size: 12.5px; }
+
+  /* meter — the fill encodes a value, so gradient + glow only, never motion */
+  .meter { --st: var(--series-1); }
+  .meter .track {
+    height: 9px; border-radius: 999px; overflow: hidden; position: relative;
+    background: color-mix(in oklab, var(--st) 13%, var(--surface-solid));
+    box-shadow: inset 0 1px 2px var(--inset);
+  }
+  .meter .fill {
+    height: 100%; border-radius: 999px;
+    background: linear-gradient(95deg, color-mix(in oklab, var(--st) 72%, #fff), var(--st));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.38),
+                0 0 10px -2px color-mix(in oklab, var(--st) calc(var(--glow) * 100%), transparent);
+  }
+  .meter .ticks { display: flex; justify-content: space-between; margin-top: 5px; color: var(--text-muted); font-size: 11px; }
+
+  .kv { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; }
+  .kv div span { color: var(--text-muted); }
+  .kv div b { font-weight: 600; }
+
+  .card-actions { display: flex; gap: 7px; margin-top: auto; padding-top: 5px; flex-wrap: wrap; }
+
+  /* ---------- tables ---------- */
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.grid th, table.grid td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--gridline); }
+  table.grid th:first-child, table.grid td:first-child { text-align: left; }
+  table.grid th { color: var(--text-muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  table.grid td { font-variant-numeric: tabular-nums; }
+  table.grid tbody tr:hover { background: var(--ghost); }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid td.lapse { color: var(--danger-text); font-weight: 600; }
+
+  .panel { padding: 16px 18px; margin-bottom: 16px; }
+  .panel > h3 { font-size: 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--text-muted); }
+  .empty { text-align: center; padding: 52px 20px; color: var(--text-secondary); }
+  .empty h2 { font-size: 17px; margin-bottom: 7px; letter-spacing: -0.015em; }
+  .empty p { max-width: 460px; margin: 0 auto 18px; color: var(--text-muted); }
+
+  /* ---------- forms / modal ---------- */
+  /* NO backdrop-filter here either, though it was once thought to earn its
+     cost. Measured: with blur(7px) on this full-viewport overlay, typing in a
+     modal composited at 94ms/frame — about 10fps — against 3.4ms/frame with it
+     off. A filter on a viewport-sized layer is re-run by the compositor as the
+     modal above it repaints, so every keystroke paid for it, and every form in
+     this app sits on this overlay. A deeper flat dim separates the modal just
+     as well; the modal's own shadow does the rest.
+
+     The dim is flat and only partly opaque, so the ribbon still glows behind
+     the modal — that is what the frost has to bend, and it is free: the
+     backdrop is one static fill over a layer that was already painted. */
+  .backdrop {
+    position: fixed; inset: 0;
+    background: var(--dim);
+    display: none; align-items: flex-start; justify-content: center; z-index: 40;
+    padding: 40px 16px; overflow: auto;
+  }
+  .backdrop.open { display: flex; }
+  /* Same lens recipe, denser frost. The hero looks through a gradient, but a
+     form looks through whatever text happens to be under it, and glass that
+     makes a label hard to read has stopped being a good joke. Overriding the
+     two frost variables re-uses .lens's background wholesale rather than
+     restating it — and per theme, so light mode stays white frost. */
+  .modal {
+    width: 100%; max-width: 560px; padding: 22px 24px 24px;
+    animation: pop .2s cubic-bezier(.2,.8,.3,1) both;
+    /* Sheer, and it stays sheer. I briefly took this to .94/.91 chasing an
+       11.5px .hint that measured 4.17:1 — then measured only the pixels a glyph
+       actually covers and found the tinted ones sat in the line box's top
+       leading, 4px below the .customrow glow above and no ink within them. The
+       real ink was never below 5:1. Sampling a text run's whole BOX, padding or
+       leading included, invents failures and then spends real translucency
+       buying them off.
+       .88/.80 is a shade too sheer even so — measured on glyph pixels only it
+       lands at 4.44 and 4.49, just under. This is the sheerest pair that clears
+       4.5 on every run in the panel (tightest 4.78 light, 5.82 dark).
+       Keep both declarations OUTSIDE this comment: a stray close-marker left
+       above them makes the parser swallow --frost-a up to the next semicolon,
+       and the modal then silently inherits the hero's much sheerer frost. That
+       is exactly what happened, and it reads as a palette bug, not a syntax
+       one — the tinted showthrough looks like a colour you chose. */
+    --frost-a: rgba(255,255,255,0.90);
+    --frost-b: rgba(255,255,255,0.83);
+  }
+  [data-theme="dark"] .modal {
+    --frost-a: rgba(68,36,82,0.84);
+    --frost-b: rgba(26,11,32,0.91);
+  }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+  .modal h2 { font-size: 17px; margin-bottom: 15px; letter-spacing: -0.015em; }
+  .field { margin-bottom: 13px; }
+  .field > label { display: block; font-size: 12.5px; color: var(--text-secondary); margin-bottom: 5px; }
+  .hint { font-size: 11.5px; color: var(--text-muted); }
+  .field .hint { margin-top: 4px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 12px; font: inherit; color: var(--text-primary);
+    background: var(--ghost);
+    border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: inset 0 1px 2px var(--inset);
+    transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  input:hover, select:hover, textarea:hover { border-color: color-mix(in oklab, var(--accent) 32%, var(--border)); }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: color-mix(in oklab, var(--accent) 62%, transparent);
+    box-shadow: inset 0 1px 2px var(--inset),
+                0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
+
+  /* The paid-through badge that opens the buy sheet. `.status` is built for a
+     card head, where `margin-left:auto` shoves it to the right edge — here it
+     leads the row, so that has to come back off. */
+  .paidrow, .syncrow {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: -4px 0 10px; font-size: 12.5px;
+  }
+  .paidrow .status, .syncrow .status { margin-left: 0; }
+
+  /* The sync button doubles as the status light, so it needs to go loud without
+     becoming another palette. The TEXT takes the ink tokens, not the status
+     fills — --st-critical as ink is 3.69:1 in dark and --st-serious is 3.42:1 in
+     light, which is the whole reason the ink siblings exist. The BORDER may keep
+     the fill hue: it is a 3:1 non-text affordance and the tint is what makes the
+     button read as the same object as the badge it is reporting on. */
+  #btn-sync.s-warn { color: var(--danger-text); border-color: color-mix(in oklab, var(--st-critical) 45%, transparent); }
+  #btn-sync.s-pend { color: var(--warn-text);   border-color: color-mix(in oklab, var(--st-serious) 40%, transparent); }
+  #btn-sync.s-busy { opacity: 0.6; }
+
+  /* Quick buy: which months is the entire decision, so the months are the form.
+     One tap on a chip records the buy — nothing else to fill in, no Save. The
+     chips are narrower than the old rupee ones because a month label is short. */
+  .buygrid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    gap: 8px; margin-bottom: 16px;
+  }
+  .buychip {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    padding: 12px 14px; text-align: left; line-height: 1.25;
+    border-radius: 15px;
+  }
+  .buychip b { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; }
+  .buychip span { font-size: 11.5px; font-weight: 400; }
+  .customrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
+
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .modal-actions .left { margin-right: auto; }
+  .memrow { display: grid; grid-template-columns: 1fr 110px 62px 26px; gap: 7px; margin-bottom: 7px; align-items: center; }
+  .memrow .x { background: none; border: none; box-shadow: none; color: var(--text-muted); cursor: pointer; font-size: 15px; }
+  .memrow .x:hover { color: var(--danger-text); transform: none; }
+  .allocrow { display: grid; grid-template-columns: 130px 1fr 30px; gap: 7px; margin-bottom: 7px; align-items: center; }
+
+  .plan-item {
+    display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+    padding: 12px 10px; margin: 0 -10px; border-radius: var(--radius-sm);
+    border-bottom: 1px solid var(--gridline);
+  }
+  .plan-item:hover { background: var(--ghost); }
+  .plan-item:last-child { border-bottom: none; }
+  .plan-item .nm { font-weight: 600; }
+  .plan-item .meta { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    border: 1px solid transparent; border-radius: 12px;
+    background:
+      linear-gradient(var(--surface-solid), var(--surface-solid)) padding-box,
+      var(--rim) border-box;
+    color: var(--text-primary);
+    box-shadow: inset 0 1px 0 var(--lip), var(--sh-lg),
+                0 0 24px -12px color-mix(in oklab, var(--accent) 60%, transparent);
+    padding: 10px 17px; font-size: 13px; z-index: 60;
+    opacity: 0; pointer-events: none;
+    transition: opacity .18s ease, transform .18s cubic-bezier(.2,.8,.3,1);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* scrollbars */
+  * { scrollbar-width: thin; scrollbar-color: var(--baseline) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: var(--baseline); border-radius: 999px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ============================================================
+     Lite skin — for a streamed desktop (RDP / Citrix / VDI), which is how
+     this actually gets used.
+
+     A remote session ships the screen as video, so the cost of a frame is the
+     number of pixels that changed and how well they compress — not GPU work.
+     Two things dominate, and neither shows up in a local profile: large soft
+     gradients, which an inter-frame codec cannot encode cleanly and so keeps
+     re-sending, and anything that MOVES a big region, which invalidates it.
+
+     Note what lite does NOT touch any more: the ribbon stays. It is one
+     static texture on a fixed layer, so it is painted once and then costs
+     nothing — flattening it was defensive rather than measured, and it is the
+     whole look. What lite removes is everything that MOVES or re-blends: the
+     wide shadow haloes that travel with each card on every scroll frame, the
+     hover lifts, the per-card sheen, the coloured glows, and — since the grid
+     went translucent — the alpha on EVERY glass surface, which is now the
+     biggest single thing in here. Opaque surfaces can be occlusion-culled, so
+     the wash behind the content column stops being blended per frame.
+     ============================================================ */
+  :root[data-lite] {
+    /* tight shadows: a 48px blur halo is a big soft gradient that moves with
+       its card on every scroll frame, which is the worst thing you can hand
+       a video encoder */
+    --sh-sm: 0 1px 1px rgba(64,16,78,0.07);
+    --sh-md: 0 1px 2px rgba(64,16,78,0.10);
+    --sh-lg: 0 2px 6px rgba(64,16,78,0.14);
+    --sheen: none;
+    --glow: 0;              /* zeroes every coloured bloom via calc() */
+  }
+  :root[data-lite][data-theme="dark"] {
+    --sh-sm: 0 1px 1px rgba(0,0,0,0.5);
+    --sh-md: 0 1px 2px rgba(0,0,0,0.6);
+    --sh-lg: 0 2px 6px rgba(0,0,0,0.7);
+  }
+  /* Every glass surface goes opaque. This is now the main thing lite does: the
+     grid is translucent by default, so under lite a card no longer forces the
+     wash beneath it to be re-blended, and the whole content column can be
+     occlusion-culled again. Same colours the frost blends to over the wash, so
+     the skin reads almost the same — you lose the tint each card picks up from
+     what it is sitting over, which is exactly the thing you are trading away.
+     Must come BEFORE the hero/modal rule below: equal specificity, later wins. */
+  [data-lite] .glass {
+    background:
+      var(--sheen) padding-box,
+      linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
+      var(--rim) border-box;
+  }
+  [data-lite] .hero, [data-lite] .modal {
+    background:
+      radial-gradient(95% 150% at 90% -25%, var(--refract-2), transparent 60%) padding-box,
+      radial-gradient(80% 130% at 4% 125%, var(--refract-1), transparent 58%) padding-box,
+      linear-gradient(148deg, var(--surface-1), var(--surface-1b)) padding-box,
+      var(--rim) border-box;
+  }
+  [data-lite] .lens { box-shadow: inset 0 1px 0 var(--lip), inset 0 -1px 0 var(--lip-low), var(--sh-md); }
+  [data-lite] .btn.primary {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.40), inset 0 -1px 0 rgba(0,0,0,.14),
+                0 1px 2px rgba(64,16,78,.18);
+  }
+  [data-lite] .btn.primary:hover {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.48), 0 1px 3px rgba(64,16,78,.22);
+  }
+  /* no lifts, no fades: moving or cross-fading a 370px card re-encodes all of it */
+  [data-lite] .card, [data-lite] .btn { transition: none; }
+  [data-lite] .card:hover, [data-lite] .btn:hover, [data-lite] .btn:active { transform: none; }
+  [data-lite] .modal { animation: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: .001s !important; transition-duration: .001s !important;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 10px 13px 80px; }
+    .hero { gap: 20px; padding: 17px 18px; }
+    .hero .figure { font-size: 40px; }
+    .hero .side { gap: 20px; }
+    header.top { top: 6px; }
+    nav.tabs { display: flex; width: 100%; }
+    nav.tabs button { flex: 1; padding: 8px 6px; }
+    .cards { grid-template-columns: 1fr; }
+    .row3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="aura" aria-hidden="true"></div>
+<div class="wrap">
+
+  <header class="top glass">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <h1>Deployment Tracker</h1>
+        <p>Fixed monthly budget, discretionary timing — this tracks the backlog.</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="dot-unsaved" title="Unsaved changes"></span>
+      <!-- in the header, not a view, so adding a bucket is reachable from every tab -->
+      <button class="btn sm primary" id="btn-add">Add bucket</button>
+      <button class="btn sm" id="btn-save">Save to file</button>
+      <button class="btn sm" id="btn-load">Load file</button>
+      <button class="btn sm" id="btn-sync" title="Sync with a private GitHub repo">Sync</button>
+      <button class="btn sm" id="btn-theme" title="Toggle light/dark">Dark</button>
+      <button class="btn sm" id="btn-lite"
+        title="Lite drops the ambient wash, the wide shadows and the hover lifts — the things a streamed desktop pays most for">Lite</button>
+    </div>
+  </header>
+
+  <div class="hero glass lens" id="hero"></div>
+
+  <nav class="tabs glass" role="tablist">
+    <button role="tab" aria-selected="true"  data-view="dash">Dashboard</button>
+    <button role="tab" aria-selected="false" data-view="plan">Plan</button>
+    <button role="tab" aria-selected="false" data-view="ledger">Ledger</button>
+  </nav>
+
+  <section id="view-dash"></section>
+  <section id="view-plan" hidden></section>
+  <section id="view-ledger" hidden></section>
+</div>
+
+<div class="backdrop" id="backdrop"><div class="modal glass lens" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. State + persistence
+   ============================================================ */
+
+const LS_KEY = "deployment-tracker-v1";
+const DEFAULTS = () => ({
+  version: 1,
+  settings: { capMonths: 4 },
+  buckets: [],
+  purchases: [],
+  skips: []
+});
+
+let S = DEFAULTS();
+let fileHandle = null;
+let dirty = false;
+
+/* computeLedger walks every month since a bucket started, and four render
+   paths each wanted it for every bucket. Memoised per render pass instead. */
+const ledgerCache = new Map();
+function ledgerOf(b) {
+  let L = ledgerCache.get(b.id);
+  if (!L) { L = computeLedger(b); ledgerCache.set(b.id, L); }
+  return L;
+}
+
+function markDirty() {
+  dirty = true; ledgerCache.clear();
+  document.body.classList.add("dirty"); autosave();
+  syncQueue();   // no-op unless cloud sync is configured
+}
+function markClean() { dirty = false; document.body.classList.remove("dirty"); }
+
+/* The whole state is now small enough to stringify outright. It used to carry
+   thousands of daily NAV points per linked fund, which is why there was a
+   persistable() that kept only the tail; with no price history left, the state
+   is a plan plus a purchase log and that is kilobytes. The write is still
+   debounced so it lands after the interaction rather than during it. */
+let saveT;
+function flushSave() {
+  // only ever writes a save that is actually pending — never invents one, so
+  // an unload can't overwrite good stored data with a state that never loaded
+  if (!saveT) return;
+  clearTimeout(saveT); saveT = null;
+  try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) { /* quota / file:// */ }
+}
+function autosave() { clearTimeout(saveT); saveT = setTimeout(flushSave, 500); }
+function loadAutosave() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) { S = migrate(Object.assign(DEFAULTS(), JSON.parse(raw))); return true; }
+  } catch (e) {}
+  return false;
+}
+
+async function saveToFile() {
+  const json = JSON.stringify(S, null, 2);
+  if (window.showSaveFilePicker) {
+    try {
+      if (!fileHandle) {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: "investment-plan.json",
+          types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+        });
+      }
+      const w = await fileHandle.createWritable();
+      await w.write(json); await w.close();
+      markClean(); toast("Saved");
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      fileHandle = null; // fall through to download
+    }
+  }
+  const blob = new Blob([json], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "investment-plan.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  markClean(); toast("Downloaded investment-plan.json");
+}
+
+async function loadFromFile() {
+  if (window.showOpenFilePicker) {
+    try {
+      const [h] = await window.showOpenFilePicker({
+        types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+      });
+      const text = await (await h.getFile()).text();
+      applyLoaded(text); fileHandle = h;
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = async () => { if (inp.files[0]) applyLoaded(await inp.files[0].text()); };
+  inp.click();
+}
+
+/* Files and localStorage written before the price machinery was removed carry
+   a `source` object instead of a plain `tracks` string, and the fund name lived
+   inside it. Without this, every card from an older save silently loses its
+   subtitle and reads "no description" — the data is right there, so carry it
+   across rather than making you retype it. It only ever fills a blank, so
+   running it on every load cannot overwrite something you have since edited.
+
+   What it deliberately does NOT do is delete the other leftovers. targetPrice
+   and priceLog are numbers you typed by hand; nothing reads them any more, but
+   dropping them would destroy input you can't get back, and a few unread keys
+   in a kilobyte-sized file cost nothing. navCache is the one exception — it was
+   never your data, just a copy of mfapi's, and it is the only part that was
+   ever large. */
+function migrate(st) {
+  for (const b of st.buckets || []) {
+    if (!b.tracks) {
+      const s = b.source || {};
+      b.tracks = s.schemeName || s.symbol || "";
+    }
+  }
+  delete st.navCache;
+  return st;
+}
+
+function applyLoaded(text) {
+  try {
+    const data = JSON.parse(text);
+    if (!data || !Array.isArray(data.buckets)) throw new Error("Not a plan file");
+    S = migrate(Object.assign(DEFAULTS(), data));
+    markClean(); autosave(); renderAll(); toast("Plan loaded");
+  } catch (e) { alert("Could not read that file: " + e.message); }
+}
+
+/* ============================================================
+   2. Small helpers
+   ============================================================ */
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
+const fmt  = n => "₹" + inr.format(Math.round(n || 0));
+const usd  = n => "$" + new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n || 0);
+
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function todayISO() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+const thisMonth = () => todayISO().slice(0, 7);
+
+const mIdx = ms => { const [y, m] = ms.split("-").map(Number); return y * 12 + (m - 1); };
+const mStr = i => Math.floor(i / 12) + "-" + String((i % 12) + 1).padStart(2, "0");
+const mLabel = ms => { const [y, m] = ms.split("-").map(Number); return MON[m - 1] + " " + y; };
+/* "Jul" inside the current year, "Dec 2026" outside it. The buy sheet puts a
+   month on every button, and the year is noise eleven times out of twelve — but
+   dropping it always would make January's view of last December ambiguous. */
+const mShort = ms => {
+  const [y, m] = ms.split("-").map(Number);
+  return MON[m - 1] + (y === Number(thisMonth().slice(0, 4)) ? "" : " " + y);
+};
+
+function dLabel(iso) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-").map(Number);
+  return d + " " + MON[m - 1] + " " + y;
+}
+function daysAgo(iso) {
+  if (!iso) return null;
+  const a = new Date(iso + "T00:00:00"), b = new Date(todayISO() + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let toastT;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+/* ============================================================
+   3. Ledger engine
+   ------------------------------------------------------------
+   Monthly budget is credited on the 1st of each month as a "lot".
+   Purchases consume lots FIFO (oldest money first).
+   A lot expires — "lapses" — at the start of month + capMonths,
+   which is what caps carry-forward at capMonths of budget.
+   Buying more than the pending balance creates an "advance" that
+   is absorbed by future credits.
+   ============================================================ */
+
+function allocFor(b, month) {
+  let amt = 0, best = -1;
+  for (const a of (b.allocations || [])) {
+    const i = mIdx(a.from);
+    if (i <= mIdx(month) && i > best) { best = i; amt = Number(a.amount) || 0; }
+  }
+  return amt;
+}
+
+function purchasesOf(id) {
+  return S.purchases.filter(p => p.bucketId === id)
+                    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function computeLedger(b) {
+  const cap = Number(S.settings.capMonths) || 4;
+  const start = b.start || (b.allocations && b.allocations[0] && b.allocations[0].from) || thisMonth();
+  const s = mIdx(start), e = mIdx(thisMonth());   // s > e ⇒ not started yet, loop is skipped
+  const px = purchasesOf(b.id);
+
+  let pi = 0, advance = 0, credited = 0, deployed = 0, lapsedTotal = 0;
+  const lots = [], rows = [], lapses = [];
+
+  for (let i = s; i <= e; i++) {
+    const m = mStr(i);
+
+    // (1) expire lots that have reached the cap age
+    let lapsedThis = 0;
+    for (const lot of lots) {
+      if (lot.left > 0 && mIdx(lot.month) <= i - cap) { lapsedThis += lot.left; lot.left = 0; }
+    }
+    if (lapsedThis > 0) { lapses.push({ month: m, amount: lapsedThis }); lapsedTotal += lapsedThis; }
+
+    // (2) credit this month (opening backlog rides the first month)
+    let credit = allocFor(b, m);
+    if (i === s && Number(b.openingPending) > 0) credit += Number(b.openingPending);
+    credited += credit;
+    let net = credit;
+    if (advance > 0 && net > 0) { const use = Math.min(advance, net); advance -= use; net -= use; }
+    if (net > 0) lots.push({ month: m, amount: credit, left: net });
+
+    // (3) purchases up to and including this month, oldest first.
+    //     "<=" not "===" so a buy dated before the tracking start still lands in a row
+    //     and the month table reconciles with the totals.
+    let deployedThis = 0;
+    while (pi < px.length && px[pi].date.slice(0, 7) <= m) {
+      let amt = Number(px[pi].amountInr) || 0;
+      deployedThis += amt; deployed += amt;
+      for (const lot of lots) {
+        if (amt <= 0) break;
+        if (lot.left > 0) { const take = Math.min(lot.left, amt); lot.left -= take; amt -= take; }
+      }
+      if (amt > 0) advance += amt;   // bought ahead of budget
+      pi++;
+    }
+
+    rows.push({
+      month: m, credited: credit, deployed: deployedThis, lapsed: lapsedThis,
+      balance: lots.reduce((t, l) => t + l.left, 0)
+    });
+  }
+
+  // Future-dated purchases: still deployed, folded into the latest row so the table reconciles.
+  let ahead = 0;
+  for (; pi < px.length; pi++) {
+    const amt = Number(px[pi].amountInr) || 0;
+    deployed += amt; ahead += amt;
+    let rest = amt;
+    for (const lot of lots) {
+      if (rest <= 0) break;
+      if (lot.left > 0) { const take = Math.min(lot.left, rest); lot.left -= take; rest -= take; }
+    }
+    if (rest > 0) advance += rest;
+  }
+  if (ahead > 0 && rows.length) {
+    const last = rows[rows.length - 1];
+    last.deployed += ahead;
+    last.balance = lots.reduce((t, l) => t + l.left, 0);
+  }
+
+  const open = lots.filter(l => l.left > 0);
+  const pending = open.reduce((t, l) => t + l.left, 0);
+  const oldest = open.length ? open.reduce((a, l) => (mIdx(l.month) < mIdx(a.month) ? l : a)) : null;
+  const notStarted = s > e;
+  const monthly = notStarted ? allocFor(b, start) : allocFor(b, thisMonth());
+  const last = px.length ? px[px.length - 1] : null;
+  const lastSkip = S.skips.filter(k => k.bucketId === b.id).sort((a, c) => a.date.localeCompare(c.date)).pop();
+  const reviewed = [last && last.date, lastSkip && lastSkip.date].filter(Boolean).sort().pop() || null;
+
+  return {
+    pending, monthly, cap, capAmount: monthly * cap, advance, notStarted, startMonth: start,
+    // The surviving month-by-month lots, oldest first — what a partial buy eats
+    // into, and what the month buttons on the buy sheet are built from. `amount`
+    // is the full credit and `left` what is still owed, so left < amount marks a
+    // month that is part-paid rather than untouched.
+    openLots: open.map(l => ({ month: l.month, amount: l.amount, left: l.left }))
+                  .sort((a, c) => a.month.localeCompare(c.month)),
+    oldestMonth: oldest ? oldest.month : null,
+    /* Two different numbers, and mixing them up reads as a bug on the card.
+       `openMonths` is HOW MANY months still owe something — the count to put in
+       words, because "2 months behind" is how anyone reads ₹20,000 at ₹10,000 a
+       month. `ageMonths` is HOW OLD the oldest of them is, which is the only
+       thing that predicts lapsing (a lot expires at month + cap). They differ by
+       one whenever the current month is also unbought, i.e. most of the time.
+       Counting lots rather than dividing pending by `monthly` is deliberate:
+       `monthly` is today's allocation, older lots may have been credited at a
+       different one, and a part-paid month would divide into a fraction. */
+    openMonths: open.length,
+    ageMonths: oldest ? Math.max(0, mIdx(thisMonth()) - mIdx(oldest.month)) : 0,
+    lapses, lapsedTotal, credited, deployed, rows,
+    lastPurchase: last, lastSkip, reviewed, purchaseCount: px.length
+  };
+}
+
+/* Money still sitting in a bucket is never green. The plan is to invest every
+   month, so this month's un-deployed credit is already something to act on,
+   and once a whole month has passed it is a backlog rather than a "wait" —
+   the old rule called a full month's delay "On track" with a green tick. Green
+   now means one thing: nothing is waiting. */
+function statusOf(L) {
+  const cap = L.cap;
+  if (L.notStarted)     return { key: "idle",  st: "--st-idle", ic: "•", label: "Starts " + mLabel(L.startMonth) };
+  if (L.monthly <= 0)   return { key: "idle",  st: "--st-idle", ic: "•", label: "No budget set" };
+  if (L.pending <= 0)   return { key: "clear", st: "--st-good",    ic: "✓",
+                                 label: L.advance > 0 ? "Paid ahead by " + fmt(L.advance) : "Fully deployed" };
+  /* The number in the words is the COUNT of unbought months; the thresholds are
+     the AGE of the oldest one. Using the age for both said "1 month behind" on a
+     bucket holding two unbought months, because the current month contributes
+     money without contributing any age. */
+  const n = L.openMonths;
+  const mo = n + " month" + (n === 1 ? "" : "s");
+  if (L.ageMonths >= cap - 1) return { key: "cap", st: "--st-critical", ic: "✕", label: mo + " behind · lapsing now" };
+  if (L.ageMonths >= 1)       return { key: "act", st: "--st-serious",  ic: "▲", label: mo + " behind" };
+  return { key: "due", st: "--st-warning", ic: "!", label: "This month still to invest" };
+}
+
+const RANK = { cap: 0, act: 1, due: 2, clear: 3, idle: 4 };
+
+/** What a bucket tracks, in words. Free text you type, not a linked feed —
+    there is no price fetching in this app, so nothing has to match a
+    provider's spelling. Buckets loaded from an older file carry the linked
+    scheme name into it, so existing cards keep their subtitles. */
+function tracksLabel(b) {
+  if (b.kind === "group") {
+    const n = (b.members || []).length;
+    return n + " holding" + (n === 1 ? "" : "s");
+  }
+  return (b.tracks || "").trim() || "no description";
+}
+
+/* ============================================================
+   6. Dashboard
+   ============================================================ */
+
+function renderHero() {
+  const rows = S.buckets.map(b => ({ b, L: ledgerOf(b) }));
+  const pending = rows.reduce((t, r) => t + r.L.pending, 0);
+  const monthly = rows.reduce((t, r) => t + r.L.monthly, 0);
+  const lapsed  = rows.reduce((t, r) => t + r.L.lapsedTotal, 0);
+  /* "due" counts too: a bucket with this month's money still sitting in it is
+     something to do, which is the whole point of the plan. Only fully-deployed
+     and not-yet-started buckets are off this list. */
+  const urgent  = rows.filter(r => ["cap", "act", "due"].includes(statusOf(r.L).key)).length;
+
+  document.getElementById("hero").innerHTML = `
+    <div>
+      <div class="label">Waiting to be invested</div>
+      <div class="figure">${fmt(pending)}</div>
+      <div class="sublabel">Budget credited so far, minus what you have actually bought.</div>
+    </div>
+    <div class="side">
+      <div><div class="label">Budget / month</div><div class="v">${fmt(monthly)}</div></div>
+      <div><div class="label">Needs action</div>
+        <div class="v">${urgent} of ${S.buckets.length} bucket${S.buckets.length === 1 ? "" : "s"}</div></div>
+      <div><div class="label">Lapsed so far</div>
+        <div class="v" ${lapsed > 0 ? 'style="color:var(--danger-text)"' : ""}>${fmt(lapsed)}</div></div>
+    </div>`;
+}
+
+function renderDash() {
+  const host = document.getElementById("view-dash");
+  if (!S.buckets.length) {
+    host.innerHTML = `<div class="panel glass empty">
+      <h2>No buckets yet</h2>
+      <p>A bucket is one thing you fund every month — an index fund, an ETF, or a group
+         like your US stocks. Nothing is pre-filled; build the plan the way you actually run it.</p>
+      <button class="btn primary" onclick="editBucket()">Add your first bucket</button>
+    </div>`;
+    return;
+  }
+
+  const rows = S.buckets.map(b => ({ b, L: ledgerOf(b) }));
+  rows.sort((x, y) => {
+    const d = RANK[statusOf(x.L).key] - RANK[statusOf(y.L).key];
+    return d || (y.L.pending - x.L.pending);
+  });
+
+  host.innerHTML = `<div class="cards">` + rows.map(({ b, L }) => {
+    const st = statusOf(L);
+    const pct = L.capAmount ? Math.min(100, L.pending / L.capAmount * 100) : 0;
+    /* Spelled out rather than "3mo old", because it sits inches from a badge
+       reading "4 months behind" and the terse form invites reading the age as
+       another count of months. See the two fields in computeLedger. */
+    const since = L.oldestMonth
+      ? `oldest budget from ${mLabel(L.oldestMonth)}${
+          L.ageMonths ? " · waiting " + L.ageMonths + " month" + (L.ageMonths === 1 ? "" : "s") : " (current)"}`
+      : "nothing pending";
+    const rev = daysAgo(L.reviewed);
+
+    return `<article class="card glass">
+      <div class="card-head">
+        <div>
+          <div class="nm">${esc(b.name)}</div>
+          <div class="sub">${fmt(L.monthly)}/month · ${esc(tracksLabel(b))}</div>
+        </div>
+        <span class="status st-${st.key}" style="--st:var(${st.st})"><span class="ic">${st.ic}</span>${st.label}</span>
+      </div>
+
+      <div class="pending-row">
+        <span class="amt">${fmt(L.pending)}</span>
+        <span class="since">pending · ${since}</span>
+      </div>
+
+      <div class="meter" style="--st:var(${st.st})">
+        <div class="track"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="ticks"><span>₹0</span><span>${L.cap}-month cap · ${fmt(L.capAmount)}</span></div>
+      </div>
+
+      <div class="kv">
+        <div><span>Last bought</span> <b>${L.lastPurchase ? dLabel(L.lastPurchase.date) : "never"}</b>${
+          L.lastPurchase ? ` <span>(${daysAgo(L.lastPurchase.date)}d)</span>` : ""}</div>
+        <div><span>Reviewed</span> <b>${rev == null ? "never" : rev + "d ago"}</b></div>
+        ${L.lapsedTotal > 0 ? `<div><span>Lapsed</span> <b style="color:var(--danger-text)">${fmt(L.lapsedTotal)}</b></div>` : ""}
+        ${L.advance > 0 ? `<div><span>Bought ahead</span> <b>${fmt(L.advance)}</b></div>` : ""}
+      </div>
+
+      <div class="card-actions">
+        <button class="btn sm primary" onclick="buyForm('${b.id}')">Record buy</button>
+        <button class="btn sm" onclick="skipForm('${b.id}')">Log a wait</button>
+        <button class="btn sm" onclick="editBucket('${b.id}')">Edit</button>
+      </div>
+    </article>`;
+  }).join("") + `</div>`;
+}
+
+/* ============================================================
+   7. Plan view
+   ============================================================ */
+
+function renderPlan() {
+  const host = document.getElementById("view-plan");
+  const cap = Number(S.settings.capMonths) || 4;
+
+  host.innerHTML = `
+    <div class="panel glass">
+      <h3>Rules</h3>
+      <div class="field" style="max-width:420px">
+        <label for="capsel">Carry-forward limit</label>
+        <select id="capsel">${[2, 3, 4, 5, 6, 12].map(n =>
+          `<option value="${n}" ${n === cap ? "selected" : ""}>${n} months</option>`).join("")}</select>
+        <div class="hint">Budget older than this lapses instead of accruing forever. Cards turn
+          <b>Deploy soon</b> one month before, and <b>Budget lapsing now</b> in the final month.</div>
+      </div>
+    </div>
+
+    <div class="panel glass">
+      <h3>Buckets <button class="btn sm" style="margin-left:auto" onclick="editBucket()">Add bucket</button></h3>
+      ${S.buckets.length ? S.buckets.map(b => {
+        const L = ledgerOf(b);
+        const allocs = (b.allocations || []).slice().sort((x, y) => x.from.localeCompare(y.from));
+        return `<div class="plan-item">
+          <div>
+            <div class="nm">${esc(b.name)} <span class="chip">${b.kind}</span>${
+              b.currency === "USD" ? ' <span class="chip">USD</span>' : ""}</div>
+            <div class="meta">
+              ${allocs.map(a => `${fmt(a.amount)}/mo from ${mLabel(a.from)}`).join(" → ")}
+              · started ${mLabel(b.start)}
+              ${b.kind === "group" ? "" : " · " + esc(tracksLabel(b))}
+              ${(b.members || []).length ? " · " + b.members.map(m => esc(m.name)).join(", ") : ""}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn sm" onclick="editBucket('${b.id}')">Edit</button>
+            <button class="btn sm danger" onclick="delBucket('${b.id}')">Delete</button>
+          </div>
+        </div>`;
+      }).join("") : `<p class="muted">Nothing yet. Add a bucket to start.</p>`}
+    </div>
+
+    <div class="panel glass">
+      <h3>Data</h3>
+      <p class="muted" style="margin-top:0">Your plan lives in a JSON file you control. The browser
+        keeps a working copy, but <b>Save to file</b> is the real backup.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" onclick="saveToFile()">Save to file</button>
+        <button class="btn" onclick="loadFromFile()">Load file</button>
+        <button class="btn danger" onclick="wipe()">Clear everything</button>
+      </div>
+    </div>`;
+
+  host.querySelector("#capsel").onchange = e => {
+    S.settings.capMonths = Number(e.target.value); markDirty(); renderAll();
+  };
+}
+
+function wipe() {
+  if (!confirm("Delete the entire plan, all purchases and all logs from this browser?\n\nThis cannot be undone. Save to file first if you want a copy.")) return;
+  S = DEFAULTS(); fileHandle = null; autosave(); renderAll(); toast("Cleared");
+}
+
+function delBucket(id) {
+  const b = S.buckets.find(x => x.id === id);
+  const n = S.purchases.filter(p => p.bucketId === id).length;
+  if (!confirm(`Delete "${b.name}"` + (n ? ` and its ${n} recorded purchase${n > 1 ? "s" : ""}` : "") + "?")) return;
+  S.buckets = S.buckets.filter(x => x.id !== id);
+  S.purchases = S.purchases.filter(p => p.bucketId !== id);
+  S.skips = S.skips.filter(k => k.bucketId !== id);
+  markDirty(); renderAll();
+}
+
+/* ============================================================
+   8. Ledger view (the table view / audit trail)
+   ============================================================ */
+
+function renderLedger() {
+  const host = document.getElementById("view-ledger");
+  if (!S.buckets.length) { host.innerHTML = `<div class="panel glass empty"><p>Nothing to show yet.</p></div>`; return; }
+
+  const activity = [
+    ...S.purchases.map(p => ({ ...p, t: "buy" })),
+    ...S.skips.map(k => ({ ...k, t: "wait" }))
+  ].sort((a, b) => b.date.localeCompare(a.date) || (b.id > a.id ? 1 : -1));
+
+  const nameOf = id => (S.buckets.find(b => b.id === id) || {}).name || "(deleted)";
+
+  host.innerHTML = S.buckets.map(b => {
+    const L = ledgerOf(b);
+    return `<div class="panel glass">
+      <h3>${esc(b.name)} <span class="muted" style="font-weight:400">
+        · credited ${fmt(L.credited)} · deployed ${fmt(L.deployed)}
+        · pending ${fmt(L.pending)}${L.lapsedTotal ? " · lapsed " + fmt(L.lapsedTotal) : ""}</span></h3>
+      <table class="grid">
+        <thead><tr><th>Month</th><th>Credited</th><th>Deployed</th><th>Lapsed</th><th>Pending after</th></tr></thead>
+        <tbody>${L.rows.slice().reverse().map(r => `<tr>
+          <td>${mLabel(r.month)}</td>
+          <td>${r.credited ? fmt(r.credited) : "—"}</td>
+          <td>${r.deployed ? fmt(r.deployed) : "—"}</td>
+          <td class="${r.lapsed ? "lapse" : ""}">${r.lapsed ? "−" + fmt(r.lapsed) : "—"}</td>
+          <td>${fmt(r.balance)}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>`;
+  }).join("") + `
+    <div class="panel glass">
+      <h3>Activity</h3>
+      ${activity.length ? `<table class="grid">
+        <thead><tr><th>Date</th><th>Bucket</th><th>Action</th><th>Amount</th><th>Note</th></tr></thead>
+        <tbody>${activity.map(a => `<tr>
+          <td>${dLabel(a.date)}</td>
+          <td>${esc(nameOf(a.bucketId))}</td>
+          <td>${a.t === "buy" ? "Bought" : "Waited"}</td>
+          <td>${a.t === "buy" ? fmt(a.amountInr) + (a.ccy === "USD" ? ` <span class="muted">(${usd(a.rawAmount)} @ ${a.fx})</span>` : "") : "—"}</td>
+          <td>${esc((a.member ? a.member + " · " : "") + (a.note || a.reason || ""))}</td>
+          <td style="text-align:right"><button class="btn sm danger" onclick="delEntry('${a.t}','${a.id}')">Delete</button></td>
+        </tr>`).join("")}</tbody></table>` : `<p class="muted">No purchases or waits logged yet.</p>`}
+    </div>`;
+}
+
+function delEntry(t, id) {
+  if (!confirm("Delete this entry?")) return;
+  if (t === "buy") S.purchases = S.purchases.filter(p => p.id !== id);
+  else S.skips = S.skips.filter(k => k.id !== id);
+  markDirty(); renderAll();
+}
+
+/* ============================================================
+   9. Modal plumbing
+   ============================================================ */
+
+const backdrop = document.getElementById("backdrop");
+const modal = document.getElementById("modal");
+function openModal(html, onMount) {
+  modal.innerHTML = html;
+  backdrop.classList.add("open");
+  if (onMount) onMount(modal);
+  const f = modal.querySelector("input,select,textarea");
+  if (f) f.focus();
+}
+function closeModal() { backdrop.classList.remove("open"); modal.innerHTML = ""; }
+backdrop.addEventListener("mousedown", e => { if (e.target === backdrop) closeModal(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && backdrop.classList.contains("open")) closeModal(); });
+
+/* ---------- bucket editor ---------- */
+
+function editBucket(id) {
+  const isNew = !id;
+  const b = isNew
+    ? { id: uid(), name: "", kind: "mf", currency: "INR", start: thisMonth(),
+        openingPending: 0, allocations: [{ from: thisMonth(), amount: 10000 }],
+        tracks: "", members: [], note: "" }
+    : JSON.parse(JSON.stringify(S.buckets.find(x => x.id === id)));
+
+  const allocRows = a => a.map((x, i) => `<div class="allocrow" data-ai="${i}">
+      <input type="month" value="${x.from}" data-af>
+      <input type="number" min="0" step="500" value="${x.amount}" data-aa placeholder="Amount per month">
+      <button class="x btn sm" data-adel title="Remove">×</button></div>`).join("");
+
+  const memRows = m => m.map((x, i) => `<div class="memrow" data-mi="${i}">
+      <input value="${esc(x.name)}" data-mn placeholder="Holding name">
+      <input value="${esc(x.ticker || "")}" data-mt placeholder="Ticker">
+      <input type="number" min="0" step="1" value="${x.weight == null ? "" : x.weight}" data-mw placeholder="Wt">
+      <button class="x" data-mdel title="Remove">×</button></div>`).join("");
+
+  openModal(`
+    <h2>${isNew ? "Add bucket" : "Edit bucket"}</h2>
+
+    <div class="field">
+      <label for="f-name">Name</label>
+      <input id="f-name" value="${esc(b.name)}" placeholder="e.g. Nifty 50 Index, GoldBees, US Stocks">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="f-kind">Type</label>
+        <select id="f-kind">
+          <option value="mf" ${b.kind === "mf" ? "selected" : ""}>Fund or ETF</option>
+          <option value="equity" ${b.kind === "equity" ? "selected" : ""}>Single stock</option>
+          <option value="group" ${b.kind === "group" ? "selected" : ""}>Group of holdings</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-ccy">Buys in</label>
+        <select id="f-ccy">
+          <option value="INR" ${b.currency === "INR" ? "selected" : ""}>INR</option>
+          <option value="USD" ${b.currency === "USD" ? "selected" : ""}>USD</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field" id="wrap-tracks" ${b.kind === "group" ? "hidden" : ""}>
+      <label for="f-tracks">What it tracks <span class="muted">(optional)</span></label>
+      <input id="f-tracks" value="${esc(b.tracks || "")}"
+        placeholder="e.g. Motilal Oswal Nifty Midcap 150 Index Fund, or TATAMOTORS">
+      <div class="hint">Free text, shown under the bucket name on its card — the full fund name, a
+        ticker, whatever you would recognise. It is a label and nothing else: no price is looked up,
+        so it does not have to match anyone's spelling.</div>
+    </div>
+
+    <div class="field" id="wrap-mem" ${b.kind === "group" ? "" : "hidden"}>
+      <label>Holdings in this group</label>
+      <div id="mem-list">${memRows(b.members || [])}</div>
+      <button class="btn sm" id="mem-add" type="button">Add holding</button>
+      <div class="hint">Weights are for your own reference when splitting a buy.</div>
+    </div>
+
+    <div class="field">
+      <label>Monthly amount, effective-dated</label>
+      <div id="alloc-list">${allocRows(b.allocations)}</div>
+      <button class="btn sm" id="alloc-add" type="button">Add a change</button>
+      <div class="hint">Add a row when you raise the amount — past months keep their old
+        figure, so history is never rewritten.</div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="f-start">Tracking starts</label>
+        <input id="f-start" type="month" value="${b.start}">
+      </div>
+      <div class="field">
+        <label for="f-open">Opening backlog</label>
+        <input id="f-open" type="number" min="0" step="500" value="${b.openingPending || 0}">
+        <div class="hint">Already-pending amount as of that month. Lets you start clean without
+          re-entering months of history.</div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="f-save">${isNew ? "Add bucket" : "Save"}</button>
+    </div>
+  `, m => {
+    const $ = s => m.querySelector(s);
+
+    const syncKind = () => {
+      const k = $("#f-kind").value;
+      // a group's card reads "N holdings", so a free-text label would never show
+      $("#wrap-tracks").hidden = k === "group";
+      $("#wrap-mem").hidden = k !== "group";
+    };
+    $("#f-kind").onchange = syncKind;
+
+    // --- allocation rows
+    const readAllocs = () => Array.from(m.querySelectorAll("#alloc-list .allocrow")).map(r => ({
+      from: r.querySelector("[data-af]").value || thisMonth(),
+      amount: Number(r.querySelector("[data-aa]").value) || 0
+    })).filter(a => a.from);
+    const drawAllocs = list => { $("#alloc-list").innerHTML = allocRows(list); bindAllocs(); };
+    const bindAllocs = () => m.querySelectorAll("[data-adel]").forEach(btn => btn.onclick = () => {
+      const list = readAllocs();
+      if (list.length <= 1) { toast("Keep at least one amount"); return; }
+      list.splice(Number(btn.closest(".allocrow").dataset.ai), 1); drawAllocs(list);
+    });
+    bindAllocs();
+    $("#alloc-add").onclick = () => {
+      const list = readAllocs();
+      const last = list[list.length - 1] || { from: thisMonth(), amount: 10000 };
+      drawAllocs(list.concat([{ from: mStr(mIdx(last.from) + 1), amount: last.amount }]));
+    };
+
+    // --- member rows
+    const readMems = () => Array.from(m.querySelectorAll("#mem-list .memrow")).map(r => ({
+      name: r.querySelector("[data-mn]").value.trim(),
+      ticker: r.querySelector("[data-mt]").value.trim(),
+      weight: r.querySelector("[data-mw]").value === "" ? null : Number(r.querySelector("[data-mw]").value)
+    })).filter(x => x.name);
+    const drawMems = list => { $("#mem-list").innerHTML = memRows(list); bindMems(); };
+    const bindMems = () => {
+      m.querySelectorAll("[data-mdel]").forEach(btn => btn.onclick = () => {
+        const list = readMems(); list.splice(Number(btn.closest(".memrow").dataset.mi), 1); drawMems(list);
+      });
+    };
+    bindMems();
+    $("#mem-add").onclick = () => drawMems(readMems().concat([{ name: "", ticker: "", weight: null }]));
+
+    // --- save
+    $("#f-save").onclick = () => {
+      const name = $("#f-name").value.trim();
+      if (!name) { toast("Give the bucket a name"); $("#f-name").focus(); return; }
+      const kind = $("#f-kind").value;
+      const allocs = readAllocs().sort((x, y) => x.from.localeCompare(y.from));
+      if (!allocs.length || !allocs.some(a => a.amount > 0)) { toast("Set a monthly amount"); return; }
+
+      // built on top of b, not from scratch, so a bucket carried over from the
+      // price-fetching era keeps its leftover keys instead of losing them the
+      // first time you open its editor
+      const rec = Object.assign({}, b, {
+        id: b.id, name, kind,
+        currency: $("#f-ccy").value,
+        start: $("#f-start").value || allocs[0].from,
+        openingPending: Number($("#f-open").value) || 0,
+        allocations: allocs,
+        tracks: $("#f-tracks").value.trim(),
+        members: kind === "group" ? readMems() : (b.members || []),
+        note: b.note || ""
+      });
+      if (mIdx(rec.start) > mIdx(allocs[0].from)) rec.start = allocs[0].from;
+
+      const i = S.buckets.findIndex(x => x.id === rec.id);
+      if (i < 0) S.buckets.push(rec); else S.buckets[i] = rec;
+      markDirty(); closeModal(); renderAll();
+      toast(i < 0 ? "Bucket added" : "Saved");
+    };
+  });
+}
+
+/* ---------- record a buy ---------- */
+
+/* How far the plan is actually settled, for the badge at the top of the buy
+   sheet. Derived from the surviving lots, never from the last purchase *date* —
+   a date does not say what it covered, since one ₹30,000 buy in April settles
+   April, May and June at once. The month before the oldest open lot is the last
+   one with nothing left owing on it. */
+function paidThrough(L) {
+  if (L.notStarted)
+    return { key: "idle", st: "--st-idle", ic: "•", label: "Not started", sub: "first month is " + mShort(L.startMonth) };
+
+  const first = L.openLots[0];
+
+  /* Nothing outstanding at all. Any advance is whole months bought early, so it
+     is honest to say the plan is paid through past the current month. */
+  if (!first) {
+    const ahead = L.monthly > 0 ? Math.floor((L.advance || 0) / L.monthly) : 0;
+    return {
+      key: "clear", st: "--st-good", ic: "✓",
+      label: mShort(mStr(mIdx(thisMonth()) + ahead)),
+      sub: L.advance > 0 ? "paid through · " + fmt(L.advance) + " sitting ahead" : "paid through"
+    };
+  }
+
+  const part = first.left < first.amount ? first : null;
+  const done = mIdx(first.month) - 1;
+
+  /* Not one month is fully settled yet — worth saying plainly rather than
+     naming a month from before the plan even started. Both of these stay on the
+     idle dot: a tick next to the words "part-paid" contradicts itself, and the
+     tick has to keep meaning "that month is done". */
+  if (done < mIdx(L.startMonth)) {
+    return part
+      ? { key: "idle", st: "--st-idle", ic: "•", label: mShort(part.month) + " part-paid",
+          sub: fmt(part.left) + " of it still owing" }
+      : { key: "idle", st: "--st-idle", ic: "•", label: "Nothing paid yet",
+          sub: "running since " + mShort(L.startMonth) };
+  }
+
+  /* A lapsed month is no longer an open lot, so it sits inside the settled span
+     while never having been bought. "Paid through" would be a plain lie there;
+     lapses always fall before the open lots, so any lapse at all is inside it. */
+  const lapsed = L.lapses.length > 0;
+  return {
+    key: "clear", st: lapsed ? "--st-idle" : "--st-good", ic: lapsed ? "•" : "✓",
+    label: mShort(mStr(done)),
+    sub: (lapsed ? "clear through — but " + fmt(L.lapsedTotal) + " lapsed unbought" : "paid through")
+       + (part ? " · " + mShort(part.month) + " part-paid" : "")
+  };
+}
+
+/* One button per month still owing, and one for the month after. Cumulative on
+   purpose: the engine is FIFO, so money always lands on the oldest open month
+   first — there is no way to pay August while July is still open, and a button
+   labelled "+ Aug" that quietly settled July too would be lying about it. So
+   each button carries every month up to and including its own. The amount comes
+   from `lot.left`, not from the monthly figure, which is what makes a part-paid
+   month cost only its remainder. */
+function monthSteps(L) {
+  const steps = [];
+  let run = 0;
+  for (const lot of L.openLots) {
+    run += lot.left;
+    steps.push({ month: lot.month, amount: Math.round(run), n: steps.length + 1, ahead: false });
+  }
+  if (L.monthly > 0) {
+    /* The one month ahead. With a backlog it follows the newest open month;
+       with none, it follows whatever the existing advance already covers — but
+       never lands before the plan begins, or a bucket starting in November would
+       offer to pay for September. */
+    const base = steps.length
+      ? mIdx(steps[steps.length - 1].month)
+      : Math.max(mIdx(thisMonth()) + Math.floor((L.advance || 0) / L.monthly),
+                 mIdx(L.startMonth) - 1);
+    run += L.monthly;
+    steps.push({ month: mStr(base + 1), amount: Math.round(run), n: steps.length + 1, ahead: true });
+  }
+  return steps;
+}
+
+function buyForm(id) {
+  const b = S.buckets.find(x => x.id === id);
+  const L = ledgerOf(b);
+  const isUSD = b.currency === "USD";
+  const P = paidThrough(L);
+  /* Rupee buckets only. The lots are held in rupees, so a USD figure cannot be
+     turned into a number of months until the rate for that particular buy is
+     known — that path keeps asking for an amount and a rate. */
+  const steps = isUSD ? [] : monthSteps(L);
+  const memberField = (b.members || []).length ? `
+    <div class="field"><label for="b-mem">Holding</label>
+      <select id="b-mem"><option value="">— whole group —</option>
+      ${b.members.map(mm => `<option>${esc(mm.name)}</option>`).join("")}</select></div>` : "";
+
+  /* One decision only: which months. No date (it is today), no note — fields
+     that stood between "I bought" and it being written down, and skipping them
+     costs nothing, because a wrong entry comes straight back out from the
+     Ledger tab. */
+  openModal(`
+    <h2>Record a buy — ${esc(b.name)}</h2>
+
+    <div class="paidrow">
+      <span class="status st-${P.key}" style="--st:var(${P.st})"><span class="ic">${P.ic}</span>${P.label}</span>
+      <span class="muted">${P.sub}</span>
+    </div>
+
+    <p class="muted" style="margin-top:-2px">${
+      L.pending > 0
+        ? fmt(L.pending) + " pending" + (L.oldestMonth ? ", oldest from " + mLabel(L.oldestMonth) : "")
+          + ". Each button below settles everything up to that month."
+        : (L.advance > 0
+            ? "Nothing pending — you are already paid ahead by " + fmt(L.advance) + "."
+            : "Nothing pending right now.")}</p>
+
+    ${steps.length ? `
+    <div class="buygrid">
+      ${steps.map(s => `<button class="btn buychip" type="button" data-buy="${s.amount}">
+        <b>+ ${mShort(s.month)}</b>
+        <span class="muted">${fmt(s.amount)}${
+          s.ahead ? " · ahead" : s.n > 1 ? " · " + s.n + " months" : ""}</span></button>`).join("")}
+    </div>` : ""}
+
+    ${isUSD ? `
+    <div class="field">
+      <label for="b-amt">Amount (USD)</label>
+      <div class="customrow">
+        <input id="b-amt" type="number" min="0" step="0.01" placeholder="e.g. 250">
+        <button class="btn primary" id="b-save">Record</button>
+      </div>
+    </div>
+    <div class="field"><label for="b-fx">USD/INR rate used</label>
+      <input id="b-fx" type="number" step="0.01" min="1" placeholder="e.g. 88.50">
+      <div class="hint">The budget is tracked in rupees, so the buy is converted at the rate you actually got.</div>
+    </div>` : `
+    <div class="field">
+      <label for="b-months">Or pay for a number of months</label>
+      <div class="customrow">
+        <input id="b-months" type="number" min="1" step="1" placeholder="e.g. 3">
+        <button class="btn primary" id="b-save">Record</button>
+      </div>
+      <div class="hint" id="b-effect"></div>
+    </div>`}
+
+    ${memberField}
+
+    <p class="hint" style="margin-top:14px">Dated today${L.monthly > 0 ? ", at " + fmt(Math.round(L.monthly)) + " a month" : ""}.
+      More months than the backlog is fine — the extra carries forward, so the coming months arrive
+      already covered and won't show as late. A wrong entry comes back out from the Ledger tab.</p>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>
+  `, m => {
+    const monEl = m.querySelector("#b-months");
+    const amtEl = m.querySelector("#b-amt");
+    const memSel = m.querySelector("#b-mem");
+
+    const record = (raw, fx) => {
+      S.purchases.push({
+        id: uid(), bucketId: b.id, date: todayISO(),
+        ccy: b.currency, rawAmount: raw, fx,
+        amountInr: Math.round(raw * fx),
+        member: memSel ? memSel.value : "", note: ""
+      });
+      markDirty(); closeModal(); renderAll();
+      toast(fmt(Math.round(raw * fx)) + " recorded");
+    };
+
+    m.querySelectorAll("[data-buy]").forEach(btn =>
+      btn.onclick = () => record(Number(btn.dataset.buy), 1));
+
+    /* Say out loud which months a count of months actually settles. The buttons
+       are exact because they are built from the lots; this box multiplies the
+       monthly figure instead, so on a part-paid month the two disagree — by
+       design, and this line is what makes the difference visible. */
+    const effectEl = m.querySelector("#b-effect");
+    const monthsAmount = () => Math.round((Number(monEl.value) || 0) * L.monthly);
+    const describe = () => {
+      const n = Number(monEl.value) || 0;
+      const amt = monthsAmount();
+      if (!(n > 0) || !(amt > 0)) {
+        effectEl.textContent = L.monthly > 0
+          ? "At " + fmt(Math.round(L.monthly)) + " a month — type 2 for two months, and so on."
+          : "This bucket has no monthly amount, so use the buttons above.";
+        return;
+      }
+      let rest = amt;
+      const cleared = [];
+      let partial = null;
+      for (const lot of L.openLots) {
+        if (rest <= 0) break;
+        if (rest >= lot.left) { rest -= lot.left; cleared.push(lot.month); }
+        else { partial = { month: lot.month, left: lot.left - rest }; rest = 0; }
+      }
+      /* A run of months collapses to a range. Joining three or more with "and"
+         was tolerable when a whole-month buy was the exception; now that months
+         are the only unit, it is the common case. */
+      const parts = [];
+      if (cleared.length) parts.push("clears " + (cleared.length > 2
+        ? mLabel(cleared[0]) + " through " + mLabel(cleared[cleared.length - 1])
+        : cleared.map(mLabel).join(" and ")));
+      if (partial) parts.push("leaves " + fmt(partial.left) + " of " + mLabel(partial.month));
+      if (rest > 0) {
+        const ahead = L.monthly > 0 ? Math.floor(rest / L.monthly) : 0;
+        parts.push(fmt(rest) + " carries forward" + (ahead >= 1
+          ? ", covering the next " + (ahead === 1 ? "month" : ahead + " months") : ""));
+      }
+      const after = Math.max(0, L.pending - amt);
+      effectEl.textContent = fmt(amt) + " — "
+        + (parts.length ? parts.join("; ") : "nothing pending to clear")
+        + ". " + (after > 0 ? fmt(after) + " still pending after this." : "Nothing left pending.");
+    };
+    if (effectEl) { monEl.oninput = describe; describe(); }
+
+    const save = () => {
+      if (isUSD) {
+        const raw = Number(amtEl.value);
+        if (!(raw > 0)) { toast("Enter an amount"); return; }
+        const fx = Number(m.querySelector("#b-fx").value);
+        if (!(fx > 0)) { toast("Enter the USD/INR rate"); return; }
+        record(raw, fx);
+        return;
+      }
+      const n = Number(monEl.value);
+      if (!(n > 0)) { toast("Enter a number of months"); return; }
+      const amt = monthsAmount();
+      if (!(amt > 0)) { toast("This bucket has no monthly amount — use a button above"); return; }
+      record(amt, 1);
+    };
+    m.querySelector("#b-save").onclick = save;
+    const typed = isUSD ? amtEl : monEl;
+    typed.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); save(); } };
+  });
+}
+
+/* ---------- log a deliberate wait ---------- */
+
+function skipForm(id) {
+  const b = S.buckets.find(x => x.id === id);
+  openModal(`
+    <h2>Log a wait — ${esc(b.name)}</h2>
+    <p class="muted" style="margin-top:-6px">Records that you looked and chose not to buy, so the
+      backlog age reads as a decision rather than an oversight.</p>
+    <div class="field" style="max-width:220px"><label for="s-date">Date</label>
+      <input id="s-date" type="date" value="${todayISO()}" max="${todayISO()}"></div>
+    <div class="field"><label for="s-why">Reason</label>
+      <input id="s-why" placeholder="e.g. at a high, up 3 months straight, waiting for salary"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="s-save">Log wait</button>
+    </div>
+  `, m => {
+    m.querySelector("#s-save").onclick = () => {
+      S.skips.push({ id: uid(), bucketId: b.id,
+        date: m.querySelector("#s-date").value || todayISO(),
+        reason: m.querySelector("#s-why").value.trim() });
+      markDirty(); closeModal(); renderAll(); toast("Wait logged");
+    };
+  });
+}
+
+/* ============================================================
+   11. Cloud sync — one JSON file in a private GitHub repo
+   ============================================================
+
+   Why a repo and not a database: the whole state is a couple of kilobytes,
+   read whole and written whole, one user, no queries. A database engine would
+   be all cost and no benefit. What this actually needs is one shared file that
+   two devices can both reach — and putting it in git means every save is a
+   commit, so the plan gets version history and undo, which it has never had.
+
+   localStorage stays the source of truth for rendering. The cloud file is the
+   shared copy, pulled on open and pushed after a change. That keeps the app
+   instant and fully usable with no signal; sync is a layer on top, not a
+   dependency underneath. When it is not configured, not one request is made.
+
+   Honest about the token: it is a fine-grained PAT stored in localStorage on
+   each device. Scope it to the ONE data repo with Contents: read/write and
+   nothing else, and give it an expiry. Anyone with your unlocked phone can read
+   it out of devtools and write to that repo — that is the entire blast radius,
+   and revoking the token in GitHub settings ends it instantly. The data repo
+   must have Pages OFF: a Pages site is public even when its repo is private. */
+
+const SYNC_CFG  = "dt-sync";        // {owner, repo, path, branch, device, token, auto}
+const SYNC_META = "dt-sync-meta";   // {sha, at} — the blob we last exchanged
+const SYNC_SNAP = "dt-sync-snap";   // that exchange's exact JSON, to detect local edits
+
+const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
+const lsPut = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+
+function syncCfg() {
+  const c = lsGet(SYNC_CFG, null);
+  return c && c.owner && c.repo && c.path && c.token ? c : null;
+}
+
+/* Whether this device holds edits the cloud has not seen. Comparing against the
+   exact string last exchanged is what makes a pull safe to do automatically:
+   with nothing local to lose, adopting the remote copy cannot destroy anything. */
+function localChanged() { return JSON.stringify(S) !== lsGet(SYNC_SNAP, null); }
+
+/* btoa() throws on anything above U+00FF, and a fund name can hold any
+   character at all. Go through UTF-8 bytes both ways. GitHub also wraps the
+   base64 it returns, so strip whitespace before decoding. */
+function b64enc(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64dec(b64) {
+  const bin = atob(String(b64).replace(/\s+/g, ""));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function ghURL(c) {
+  return "https://api.github.com/repos/"
+    + encodeURIComponent(c.owner) + "/" + encodeURIComponent(c.repo)
+    + "/contents/" + c.path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+}
+const ghHeaders = c => ({
+  "Authorization": "Bearer " + c.token,
+  "Accept": "application/vnd.github+json",
+  "X-GitHub-Api-Version": "2022-11-28"
+});
+
+/* `cache: "no-store"` is not decoration. The API answers with an ETag, and a
+   cached 200 would make Pull quietly show yesterday's file — the exact failure
+   this whole feature exists to prevent. */
+async function ghGet(c) {
+  const r = await fetch(ghURL(c) + "?ref=" + encodeURIComponent(c.branch || "main"),
+    { headers: ghHeaders(c), cache: "no-store" });
+  if (r.status === 404) return { ok: false, missing: true, status: 404 };
+  if (!r.ok) return { ok: false, status: r.status, msg: await ghMsg(r) };
+  const j = await r.json();
+  return { ok: true, sha: j.sha, text: b64dec(j.content || "") };
+}
+
+/* The conflict guard costs nothing because git already is one: send the sha of
+   the blob this device last saw and GitHub itself refuses the write if the file
+   has moved since. No pre-flight read, no window in which two devices can both
+   think they are current. */
+async function ghPut(c, text, sha, message) {
+  const body = { message, content: b64enc(text), branch: c.branch || "main" };
+  if (sha) body.sha = sha;
+  const r = await fetch(ghURL(c), {
+    method: "PUT", headers: ghHeaders(c), cache: "no-store", body: JSON.stringify(body)
+  });
+  /* 409 is always the conflict. 422 is only one when a sha was sent — GitHub
+     also uses it for an unknown branch or a malformed path, and reporting those
+     as "pull first" would send you chasing a conflict that does not exist. */
+  if (r.status === 409) return { ok: false, conflict: true, status: 409 };
+  if (r.status === 422 && sha) return { ok: false, conflict: true, status: 422 };
+  if (!r.ok) return { ok: false, status: r.status, msg: await ghMsg(r) };
+  const j = await r.json();
+  return { ok: true, sha: j.content && j.content.sha };
+}
+
+async function ghMsg(r) {
+  let m = "";
+  try { m = (await r.json()).message || ""; } catch (e) {}
+  if (r.status === 401) return "token rejected — it may be expired or mistyped";
+  if (r.status === 403) return m || "forbidden — check the token's repository and Contents permission";
+  if (r.status === 404) return "repo or path not found — check owner/repo, and that the token can see a private repo";
+  return m || ("HTTP " + r.status);
+}
+
+/* ---------- the two operations ---------- */
+
+function adoptRemote(text, sha) {
+  const data = JSON.parse(text);
+  if (!data || !Array.isArray(data.buckets)) throw new Error("that file is not a plan");
+  S = migrate(Object.assign(DEFAULTS(), data));
+  lsPut(SYNC_META, { sha, at: new Date().toISOString() });
+  lsPut(SYNC_SNAP, JSON.stringify(S));
+  markClean(); autosave(); renderAll();
+}
+
+async function pullNow(quiet) {
+  const c = syncCfg();
+  if (!c) return { ok: false };
+  setSyncBadge("busy");
+  try {
+    const res = await ghGet(c);
+    if (res.missing) { setSyncBadge("warn", "No file there yet"); if (!quiet) toast("Nothing in the repo yet — Push to create it"); return res; }
+    if (!res.ok) { setSyncBadge("warn", res.msg); if (!quiet) toast("Pull failed: " + res.msg); return res; }
+    adoptRemote(res.text, res.sha);
+    setSyncBadge("ok");
+    if (!quiet) toast("Pulled from " + c.owner + "/" + c.repo);
+    return res;
+  } catch (e) {
+    setSyncBadge("warn", String(e.message || e));
+    if (!quiet) toast("Pull failed: " + (e.message || e));
+    return { ok: false, status: 0, msg: String(e.message || e) };
+  }
+}
+
+async function pushNow(quiet) {
+  const c = syncCfg();
+  if (!c) return { ok: false };
+  setSyncBadge("busy");
+  /* Two renderings of the same instant: the indented one goes in the file so a
+     diff on GitHub is readable, the compact one is the snapshot. They MUST be
+     taken together and the compact one MUST be what gets stored, because
+     localChanged() compares against JSON.stringify(S) with no indent — storing
+     the pretty form made every push look like it had left local changes behind,
+     which in turn made the boot pull refuse to adopt a newer cloud copy. */
+  const text = JSON.stringify(S, null, 2);
+  const snap = JSON.stringify(S);
+  const meta = lsGet(SYNC_META, {}) || {};
+  const msg = "Update from " + (c.device || "web") + " — "
+    + S.buckets.length + " bucket" + (S.buckets.length === 1 ? "" : "s") + ", "
+    + S.purchases.length + " purchase" + (S.purchases.length === 1 ? "" : "s");
+  try {
+    const res = await ghPut(c, text, meta.sha, msg);
+    if (res.conflict) {
+      setSyncBadge("warn", "Cloud has newer data — pull first");
+      toast("Another device saved after this one — open Sync and Pull first");
+      return res;
+    }
+    if (!res.ok) { setSyncBadge("warn", res.msg); if (!quiet) toast("Push failed: " + res.msg); return res; }
+    lsPut(SYNC_META, { sha: res.sha, at: new Date().toISOString() });
+    lsPut(SYNC_SNAP, snap);
+    setSyncBadge("ok");
+    if (!quiet) toast("Pushed to " + c.owner + "/" + c.repo);
+    return res;
+  } catch (e) {
+    setSyncBadge("warn", String(e.message || e));
+    if (!quiet) toast("Push failed: " + (e.message || e));
+    return { ok: false, status: 0, msg: String(e.message || e) };
+  }
+}
+
+/* Auto-push, debounced well past the end of an interaction. A tracker you have
+   to remember to sync is a tracker that silently goes stale on the other
+   device, so this is on by default — but it is one commit per settled change,
+   not one per keystroke, and a conflict stops it rather than retrying. */
+let syncT;
+function syncQueue() {
+  const c = syncCfg();
+  if (!c) return;
+  /* Move the badge first, and do it even when auto-push is off — otherwise the
+     button keeps claiming "in sync" over an edit that nothing is going to send. */
+  setSyncBadge();
+  if (c.auto === false) return;
+  clearTimeout(syncT);
+  syncT = setTimeout(() => { flushSave(); pushNow(true); }, 4000);
+}
+
+/* Called with no state, the badge works the state out for itself — which is the
+   case that matters, because that is a fresh boot and the moment an edit lands.
+   Without it the button went on reading a bare "Sync" over unpushed work, and
+   with auto-push off that is the one thing you needed telling.
+
+   Unpushed local work is amber and reserved red for a conflict or a failed
+   request: with auto-push on the amber clears itself in seconds, so spending the
+   loudest colour on it would train you to ignore the loudest colour. */
+function setSyncBadge(state, why) {
+  const el = document.getElementById("btn-sync");
+  if (!el) return;
+  if (!state) state = !syncCfg() ? "off" : localChanged() ? "pend" : "ok";
+  el.classList.toggle("s-warn", state === "warn");
+  el.classList.toggle("s-pend", state === "pend");
+  el.classList.toggle("s-busy", state === "busy");
+  const meta = lsGet(SYNC_META, {}) || {};
+  el.textContent = state === "busy" ? "Sync…"
+    : state === "warn" ? "Sync !"
+    : state === "pend" ? "Sync ↑"
+    : state === "ok" ? "Sync ✓" : "Sync";
+  el.title = why
+    || (state === "pend" ? "This device has changes the cloud has not seen"
+      : meta.at ? "Last synced " + agoLabel(meta.at)
+      : "Sync with a private GitHub repo");
+}
+
+function agoLabel(iso) {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return "just now";
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "moments ago";
+  if (m < 60) return m + " min ago";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + (h === 1 ? " hour ago" : " hours ago");
+  const d = Math.floor(h / 24);
+  return d + (d === 1 ? " day ago" : " days ago");
+}
+
+/* ---------- the panel ---------- */
+
+function syncPanel() {
+  const c = lsGet(SYNC_CFG, {}) || {};
+  const meta = lsGet(SYNC_META, {}) || {};
+  const live = !!syncCfg();
+  const changed = localChanged();
+  const st = !live ? { st: "--st-idle", ic: "•", label: "Not set up" }
+    : changed ? { st: "--st-warning", ic: "!", label: "Local changes not pushed" }
+    : { st: "--st-good", ic: "✓", label: "In sync" };
+
+  openModal(`
+    <h2>Sync</h2>
+
+    <div class="syncrow">
+      <span class="status" style="--st:var(${st.st})"><span class="ic">${st.ic}</span>${st.label}</span>
+      <span class="muted">${live
+        ? (meta.at ? "last synced " + agoLabel(meta.at) : "never synced yet")
+        : "one JSON file in a private repo, shared by every device"}</span>
+    </div>
+
+    ${live ? `
+    <div class="customrow" style="grid-template-columns:1fr 1fr; margin-bottom:14px">
+      <button class="btn" id="s-pull">Pull from cloud</button>
+      <button class="btn primary" id="s-push">Push to cloud</button>
+    </div>
+    <p class="hint" style="margin-top:-6px">Pull replaces what is on this device with the cloud copy.
+      Push sends this device's copy up. A push is refused if another device saved after your last
+      sync — pull first, then redo the entry.</p>` : `
+    <p class="muted" style="margin-top:-2px">Create a <b>private</b> repo with Pages left off — say
+      <code>tracker-data</code> — then a fine-grained token limited to that one repo with
+      <b>Contents: read and write</b>. Nothing else needs ticking.</p>`}
+
+    <div class="row2">
+      <div class="field"><label for="s-owner">GitHub user</label>
+        <input id="s-owner" value="${esc(c.owner || "")}" placeholder="your-username" autocomplete="off"></div>
+      <div class="field"><label for="s-repo">Private repo</label>
+        <input id="s-repo" value="${esc(c.repo || "")}" placeholder="tracker-data" autocomplete="off"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label for="s-path">File path</label>
+        <input id="s-path" value="${esc(c.path || "data.json")}" placeholder="data.json" autocomplete="off"></div>
+      <div class="field"><label for="s-branch">Branch</label>
+        <input id="s-branch" value="${esc(c.branch || "main")}" placeholder="main" autocomplete="off"></div>
+    </div>
+    <div class="field"><label for="s-token">Fine-grained token</label>
+      <input id="s-token" type="password" value="${esc(c.token || "")}"
+        placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+      <div class="hint">Stored in this browser only, never in the file and never committed. Scope it to
+        that one repo, Contents: read and write, with an expiry date. Revoke it in GitHub settings to
+        cut this device off.</div>
+    </div>
+    <div class="field"><label for="s-device">Name this device <span class="muted">(optional)</span></label>
+      <input id="s-device" value="${esc(c.device || "")}" placeholder="desktop" autocomplete="off">
+      <div class="hint">Goes into the commit message, so the repo's history tells you which device
+        made each change.</div>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
+        <input type="checkbox" id="s-auto" ${c.auto === false ? "" : "checked"} style="width:auto">
+        Push automatically a few seconds after a change
+      </label>
+      <div class="hint">Off means the other device only sees what you remembered to push.</div>
+    </div>
+
+    <div class="modal-actions">
+      ${live ? `<button class="btn left" id="s-forget">Sign out of this device</button>` : ""}
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="s-save">Save settings</button>
+    </div>
+  `, m => {
+    const read = () => ({
+      owner: m.querySelector("#s-owner").value.trim(),
+      repo: m.querySelector("#s-repo").value.trim(),
+      path: m.querySelector("#s-path").value.trim() || "data.json",
+      branch: m.querySelector("#s-branch").value.trim() || "main",
+      device: m.querySelector("#s-device").value.trim(),
+      token: m.querySelector("#s-token").value.trim(),
+      auto: m.querySelector("#s-auto").checked
+    });
+
+    m.querySelector("#s-save").onclick = () => {
+      const n = read();
+      if (!n.owner || !n.repo || !n.token) { toast("User, repo and token are all needed"); return; }
+      /* Pointing at a different file invalidates the remembered blob sha, and a
+         stale sha would either 409 forever or, worse, be sent against a file it
+         never described. Forget it and let the next pull re-establish it. */
+      const old = lsGet(SYNC_CFG, {}) || {};
+      if (old.owner !== n.owner || old.repo !== n.repo || old.path !== n.path || old.branch !== n.branch) {
+        try { localStorage.removeItem(SYNC_META); localStorage.removeItem(SYNC_SNAP); } catch (e) {}
+      }
+      lsPut(SYNC_CFG, n);
+      setSyncBadge();
+      closeModal();
+      toast("Sync settings saved");
+    };
+
+    const pull = m.querySelector("#s-pull");
+    if (pull) pull.onclick = async () => {
+      if (localChanged() && !confirm("This device has changes the cloud has not seen. Pulling replaces them with the cloud copy. Continue?")) return;
+      const r = await pullNow(false);
+      if (r.ok) closeModal();
+    };
+    const push = m.querySelector("#s-push");
+    if (push) push.onclick = async () => {
+      lsPut(SYNC_CFG, read());
+      const r = await pushNow(false);
+      if (r.ok) closeModal();
+    };
+    const forget = m.querySelector("#s-forget");
+    if (forget) forget.onclick = () => {
+      if (!confirm("Remove the token and sync settings from this device? Your data stays here and in the repo.")) return;
+      try { [SYNC_CFG, SYNC_META, SYNC_SNAP].forEach(k => localStorage.removeItem(k)); } catch (e) {}
+      setSyncBadge();
+      closeModal();
+      toast("Signed out on this device");
+    };
+  });
+}
+
+/* ============================================================
+   10. Boot
+   ============================================================ */
+
+/* Only the view you are looking at gets built; the other two are flagged
+   stale and rendered on switch. This is the single biggest win here — every
+   click used to run four innerHTML passes, including full ledger tables for
+   every bucket and every month, behind `hidden` where nobody could see them.
+   Now it runs one. */
+let view = "dash";
+const VIEWS = { dash: renderDash, plan: renderPlan, ledger: renderLedger };
+const stale = { dash: true, plan: true, ledger: true };
+
+function renderView() {
+  if (stale[view]) { VIEWS[view](); stale[view] = false; }
+}
+function renderAll() {
+  ledgerCache.clear();
+  renderHero();
+  stale.dash = stale.plan = stale.ledger = true;
+  renderView();
+}
+function showView(v) {
+  view = v;
+  for (const k in VIEWS) document.getElementById("view-" + k).hidden = (k !== v);
+  renderView();
+}
+
+document.querySelectorAll("nav.tabs button").forEach(btn => btn.onclick = () => {
+  document.querySelectorAll("nav.tabs button").forEach(x => x.setAttribute("aria-selected", String(x === btn)));
+  showView(btn.dataset.view);
+});
+
+document.getElementById("btn-add").onclick = () => editBucket();
+document.getElementById("btn-save").onclick = saveToFile;
+document.getElementById("btn-load").onclick = loadFromFile;
+document.getElementById("btn-sync").onclick = syncPanel;
+
+/* Lite defaults ON. It was chosen for a streamed desktop, but the measured
+   reason outlived that: the translucent grid rasters ~5x (see the stylesheet
+   header), and a phone GPU is where that is felt most. The button is the A/B —
+   the full glass is one click away and the choice sticks. */
+const liteBtn = document.getElementById("btn-lite");
+function applyLite(on) {
+  if (on) document.documentElement.setAttribute("data-lite", "");
+  else document.documentElement.removeAttribute("data-lite");
+  liteBtn.textContent = on ? "Full glass" : "Lite";
+  try { localStorage.setItem("dt-lite", on ? "1" : "0"); } catch (e) {}
+}
+liteBtn.onclick = () => applyLite(!document.documentElement.hasAttribute("data-lite"));
+applyLite((() => {
+  try { return localStorage.getItem("dt-lite") !== "0"; } catch (e) { return true; }
+})());
+
+const themeBtn = document.getElementById("btn-theme");
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  themeBtn.textContent = t === "dark" ? "Light" : "Dark";
+  try { localStorage.setItem("dt-theme", t); } catch (e) {}
+}
+themeBtn.onclick = () => applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+applyTheme((() => {
+  try { return localStorage.getItem("dt-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); }
+  catch (e) { return "light"; }
+})());
+
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+// the autosave is debounced, so make sure a pending write lands on the way out
+window.addEventListener("pagehide", flushSave);
+
+/* No resize handler. There used to be one: the charts were sized from
+   clientWidth in JS, so the dashboard had to re-render on every resize. With
+   the charts gone, nothing on the page has a width JS knows about — the cards
+   are a CSS grid and reflow by themselves. Dropping it also means rotating a
+   phone no longer rebuilds every card. */
+
+loadAutosave();
+renderAll();
+
+/* Pull on open, so the phone shows what the desktop entered. Deliberately only
+   when this device has nothing unsynced: with local edits outstanding, a silent
+   adopt would throw them away, so it says so and waits for you instead. Failure
+   here is silent by design — no signal must leave a working offline app, not an
+   error dialog over your data. */
+if (syncCfg()) {
+  setSyncBadge();
+  (async () => {
+    const c = syncCfg();
+    try {
+      const res = await ghGet(c);
+      if (!res.ok) { setSyncBadge(res.missing ? "warn" : "warn", res.missing ? "No file in the repo yet" : res.msg); return; }
+      const meta = lsGet(SYNC_META, {}) || {};
+      if (res.sha === meta.sha) { setSyncBadge("ok"); return; }
+      if (localChanged()) {
+        setSyncBadge("warn", "Cloud has newer data, and this device has unsynced changes");
+        toast("Cloud has newer data — open Sync to compare");
+        return;
+      }
+      adoptRemote(res.text, res.sha);
+      setSyncBadge("ok");
+      toast("Updated from cloud");
+    } catch (e) { setSyncBadge("warn", "Could not reach GitHub"); }
+  })();
+}
+</script>
+</body>
+</html>
