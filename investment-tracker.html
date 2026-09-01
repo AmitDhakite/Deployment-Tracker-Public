@@ -443,8 +443,29 @@
     background: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,0));
   }
   .brand h1 { font-size: 16px; letter-spacing: -0.015em; }
-  .brand p { margin: 1px 0 0; color: var(--text-muted); font-size: 12px; }
-  .top-actions { margin-left: auto; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  /* position: relative — the mobile dropdown hangs off this, not off the header,
+     so it lines up with the kebab's right edge rather than the bar's */
+  .top-actions { margin-left: auto; display: flex; gap: 7px; align-items: center; position: relative; }
+  .actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+
+  /* Hidden until the phone breakpoint. Dots are drawn with a box-shadow pair off
+     one 3.5px node — no glyph, because ⋮ is one of the characters phone fonts
+     disagree about most, and no SVG for three dots. */
+  .kebab { display: none; position: relative; width: 34px; height: 28px; padding: 0; }
+  .kebab > span {
+    width: 3.5px; height: 3.5px; border-radius: 50%; background: currentColor;
+    box-shadow: 0 -6px 0 currentColor, 0 6px 0 currentColor;
+  }
+  /* Sync state has to survive being folded away: the amber "unpushed work" signal
+     was the whole point of the badge, and inside a closed menu nobody sees it.
+     So the kebab carries the same two states as a corner pip. */
+  .kebab.s-warn::after, .kebab.s-pend::after {
+    content: ""; position: absolute; top: -2px; right: -2px;
+    width: 8px; height: 8px; border-radius: 50%;
+    border: 1.5px solid var(--surface-1);
+  }
+  .kebab.s-warn::after { background: var(--st-critical); }
+  .kebab.s-pend::after { background: var(--st-warning); }
 
   /* ---------- buttons ---------- */
   .btn {
@@ -508,6 +529,56 @@
   }
   body.dirty .dot-unsaved { display: inline-block; }
 
+  /* ---------- big money: the currency mark, set as notation ----------
+     Measured at the hero's 52px in Segoe UI, ₹ has a 28.9px advance and a 36px
+     ascent, against 28.9 and 37 for a digit — the same width, the same weight,
+     almost the same height. So at display sizes the eye reads it as a tenth
+     numeral with bars through it rather than as a unit, and it lands first,
+     before the number it is supposed to qualify. Set as its own node it goes
+     back to being notation: two thirds the size, one weight lighter, and held
+     at 70% of whatever the figure's own colour is — currentColor, not a fixed
+     grey, so the red lapsed figure keeps a red mark and nothing has to be kept
+     in step by hand.
+     Everything here is in em, so one rule serves the 52px hero figure, the 28px
+     card figure and the 20px side stats. fmt() itself is untouched and still
+     returns a plain string: at 12–13px in a table the inline glyph is correctly
+     proportioned, and that string still has to go into titles and attributes. */
+  .cur {
+    font-size: 0.63em; font-weight: 500;
+    /* the pair-gap the number needs is smaller than a space and larger than the
+       figure's own -0.03em tracking leaves, so it is stated rather than inherited.
+       Kept tight because tabular figures already carry their own: a 1 sits in the
+       same slot as a 0, so its side bearings add a few px of air that no margin
+       here can see. */
+    letter-spacing: 0; margin-right: 0.03em;
+    color: color-mix(in oklab, currentColor 70%, transparent);
+    /* Centred on the digits' body, not left on their baseline. A smaller glyph
+       sharing a baseline with 40px numerals hangs off their bottom edge and looks
+       dropped rather than placed. Digits fill 0 to cap height, so their centre is
+       at 0.35em; the mark's own cap height is 0.63 × 0.70 = 0.44em, centre 0.22em,
+       so it lifts 0.13em — which is 0.21 of the mark's own em, the unit
+       vertical-align lengths are in. Not a superscript: cap-aligning it would take
+       0.51em and it would read as a footnote over the number.
+       One ratio, so it holds at 52px, 40px, 28px and 20px alike, and it is a
+       proportion of the font's own cap height rather than a pixel nudge — Roboto
+       on the phone puts caps within a hundredth of an em of where Segoe UI does. */
+    vertical-align: 0.21em;
+  }
+  /* Indian grouping puts two commas inside every six-figure sum, and at 40px+ a
+     comma is a heavy wedge hanging below the baseline — three dark marks
+     chopping the digits into pieces. Dropped to the same 70% as the mark they
+     separate groups without competing with them. Size is left alone: the comma
+     carries a tabular advance, and shrinking it would unpick the digit rhythm
+     that tabular-nums is here to hold. */
+  .sep { color: color-mix(in oklab, currentColor 70%, transparent); }
+  /* Except on a figure that is already carrying colour as meaning. --danger-text
+     measures 5.49:1 on the hero surface, and taking 30% of it away leaves the mark
+     at 3.34 — fine as large text in the 40px figure, but the same rule reaches the
+     20px side stats, where the mark comes out at 12.6px and owes the full 4.5:1.
+     No loss: the red is doing the emphasis, and the size and weight step alone is
+     already enough to read the mark as notation. */
+  .v-danger .cur, .v-danger .sep { color: currentColor; }
+
   /* ---------- hero: the showcase pane, sitting right where the ribbon
        crosses so there is something to look through ---------- */
   .hero {
@@ -519,12 +590,19 @@
   .hero .figure {
     font-size: 52px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
     color: var(--text-primary);
+    /* proportional digits make a 1 a third the width of a 0, so recording one buy
+       used to shift every digit sideways. At this size that reads as the whole
+       figure jumping. */
+    font-variant-numeric: tabular-nums;
   }
   .hero .sublabel { color: var(--text-secondary); font-size: 12.5px; margin-top: 4px; }
   .hero .label { color: var(--text-secondary); font-size: 11.5px; margin-bottom: 3px;
     text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
   .hero .side { display: flex; gap: 30px; flex-wrap: wrap; padding-bottom: 6px; }
-  .hero .side .v { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  .hero .side .v { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  /* a class rather than the inline style this used to be, so the rule above can
+     reach inside it and leave the mark undimmed */
+  .hero .side .v-danger { color: var(--danger-text); }
 
   /* ---------- tabs: segmented control ---------- */
   nav.tabs {
@@ -610,7 +688,7 @@
   }
 
   .pending-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .pending-row .amt { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .pending-row .amt { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .pending-row .since { color: var(--text-secondary); font-size: 12.5px; }
 
   /* meter — the fill encodes a value, so gradient + glow only, never motion */
@@ -873,6 +951,42 @@
     }
   }
 
+  /* 740px, not the 620px phone breakpoint below, and measured rather than picked:
+     the six buttons are ~442px of row and the brand ~193px, so the bar runs out of
+     one-row space at ~730px viewport. Anywhere under that it wrapped to a second
+     row — the thing this menu exists to stop — so the kebab has to arrive first.
+     It is the actions row's own width that decides this, not the phone layout. */
+  @media (max-width: 740px) {
+    header.top { flex-wrap: nowrap; gap: 12px; }
+    .brand { min-width: 0; }
+    .brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .kebab { display: inline-flex; align-items: center; justify-content: center; }
+    .actions {
+      /* the six buttons stop being a wrapping row and become the dropdown, which
+         is why the header is back to a single row on a phone */
+      position: absolute; top: calc(100% + 9px); right: 0; z-index: 30;
+      display: none; flex-direction: column; align-items: stretch; flex-wrap: nowrap;
+      min-width: 178px; padding: 7px; gap: 5px;
+      border: 1px solid transparent; border-radius: 14px;
+      /* OPAQUE, for the same reason the header is (see the note above header.top):
+         this floats over cards that scroll underneath it, and translucency here
+         means reading the menu's labels through the ledger's numbers */
+      background:
+        var(--sheen) padding-box,
+        linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
+        var(--rim) border-box;
+      box-shadow: inset 0 1px 0 var(--lip), var(--sh-lg);
+    }
+    .actions.open { display: flex; }
+    .actions .btn {
+      width: 100%; text-align: left; border-radius: 10px;
+      padding: 10px 12px; font-size: 13.5px;   /* ~40px tall: a thumb target */
+    }
+    /* no lifts inside a menu — the row under the finger would slide out from it */
+    .actions .btn:hover, .actions .btn:active { transform: none; }
+  }
+
   @media (max-width: 620px) {
     .wrap { padding: 10px 13px 80px; }
     .hero { gap: 20px; padding: 17px 18px; }
@@ -883,6 +997,51 @@
     nav.tabs button { flex: 1; padding: 8px 6px; }
     .cards { grid-template-columns: 1fr; }
     .row3 { grid-template-columns: 1fr; }
+
+    /* The panel heading is a flex row of a bare text node (the bucket name) plus
+       the muted totals span. At this width the anonymous item for the name gets
+       squeezed to min-content and breaks one word per line — "Nifty / 50 / Index".
+       Stacking the two puts the name back on one line. */
+    .panel > h3 { flex-direction: column; align-items: flex-start; gap: 3px; }
+
+    /* ---------- ledger tables stop being tables ----------
+       Five right-aligned money columns need ~376px of minimum width — the header
+       cells are already nowrap at 12px, so that figure is a floor, not a choice —
+       and a phone panel has ~313px of content box. The surplus used to push a
+       horizontal scrollbar onto the whole PAGE, so the fix is not to make the
+       table scroll but to stop laying it out as a grid: each row becomes a block,
+       each cell a label/value line, and nothing overflows anything.
+       The labels come from data-label on the cells, so there is one source for
+       them; the header row is hidden rather than restated. */
+    table.grid, table.grid tbody, table.grid tr, table.grid td { display: block; }
+    table.grid thead { display: none; }
+    table.grid tbody tr { padding: 9px 0; border-bottom: 1px solid var(--gridline); }
+    table.grid tbody tr:last-child { border-bottom: none; padding-bottom: 0; }
+    table.grid tbody tr:first-child { padding-top: 0; }
+    table.grid td {
+      border-bottom: none; padding: 2px 0;
+      display: flex; align-items: baseline; gap: 14px;
+    }
+    /* the first cell is the row's identity — the month, or the date — so it reads
+       as a heading over its own values rather than as another label/value pair */
+    table.grid td:first-child {
+      display: block; font-weight: 600; font-size: 13.5px; padding-bottom: 4px;
+    }
+    /* margin-right:auto rather than justify-content:space-between on the cell:
+       a value can be more than one node (the USD amount is "₹41,750" plus a muted
+       "($500 @ 83.5)"), and space-between would spread those apart across the row
+       instead of keeping them together at the right. Pushing only the label left
+       groups however many value nodes there are. */
+    table.grid td:not(:first-child)::before {
+      content: attr(data-label);
+      color: var(--text-muted); font-size: 12px; font-weight: 500;
+      text-align: left; flex: none; margin-right: auto;
+    }
+    /* Note can be long enough to need the wrap that a flex line would deny it */
+    table.grid td[data-label="Note"] { display: block; text-align: left; }
+    table.grid td[data-label="Note"]:empty { display: none; }
+    table.grid td[data-label="Note"]::before { display: block; margin-bottom: 1px; }
+    .row-act { padding-top: 7px !important; }
   }
 </style>
 </head>
@@ -893,21 +1052,29 @@
   <header class="top glass">
     <div class="brand">
       <span class="mark" aria-hidden="true"></span>
-      <div>
-        <h1>Deployment Tracker</h1>
-        <p>Fixed monthly budget, discretionary timing — this tracks the backlog.</p>
-      </div>
+      <h1>Deployment Tracker</h1>
     </div>
     <div class="top-actions">
       <span class="dot-unsaved" title="Unsaved changes"></span>
-      <!-- in the header, not a view, so adding a bucket is reachable from every tab -->
-      <button class="btn sm primary" id="btn-add">Add bucket</button>
-      <button class="btn sm" id="btn-save">Save to file</button>
-      <button class="btn sm" id="btn-load">Load file</button>
-      <button class="btn sm" id="btn-sync" title="Sync with a private GitHub repo">Sync</button>
-      <button class="btn sm" id="btn-theme" title="Toggle light/dark">Dark</button>
-      <button class="btn sm" id="btn-lite"
-        title="Lite drops the ambient wash, the wide shadows and the hover lifts — the things a streamed desktop pays most for">Lite</button>
+      <!-- Phone-first: below 620px .actions stops being a row in the header and
+           becomes the kebab's dropdown. The SAME six buttons move — they are not
+           duplicated into a second menu — so every label the JS rewrites
+           (Sync ↑, Light, Full glass) stays correct in both layouts with no
+           state to keep in step. -->
+      <button class="btn sm kebab" id="btn-menu" aria-label="Actions"
+              aria-haspopup="true" aria-expanded="false" aria-controls="top-menu">
+        <span aria-hidden="true"></span>
+      </button>
+      <div class="actions" id="top-menu">
+        <!-- in the header, not a view, so adding a bucket is reachable from every tab -->
+        <button class="btn sm primary" id="btn-add">Add bucket</button>
+        <button class="btn sm" id="btn-save">Save to file</button>
+        <button class="btn sm" id="btn-load">Load file</button>
+        <button class="btn sm" id="btn-sync" title="Sync with a private GitHub repo">Sync</button>
+        <button class="btn sm" id="btn-theme" title="Toggle light/dark">Dark</button>
+        <button class="btn sm" id="btn-lite"
+          title="Lite drops the ambient wash, the wide shadows and the hover lifts — the things a streamed desktop pays most for">Lite</button>
+      </div>
     </div>
   </header>
 
@@ -1074,6 +1241,19 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const fmt  = n => "₹" + inr.format(Math.round(n || 0));
 const usd  = n => "$" + new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n || 0);
+
+/* The display-size form of fmt: same digits, but the currency mark and the
+   grouping commas become their own nodes so the .cur / .sep rules can set them
+   as notation instead of as numerals. See that rule for why.
+   Only for the three places a figure is set 20px or larger — the hero total, the
+   hero side stats and the card's pending amount. Everywhere else keeps fmt(),
+   which stays a plain string: the tables are 13px where the inline glyph is
+   already correctly proportioned, and a string is what a title= or an alert can
+   take. Reading the characters out of fmt()'s own output rather than
+   reformatting means there is one number format in this file, not two that can
+   drift; and the output is digits, commas and ₹ only, so it needs no escaping. */
+const fmtBig = n => fmt(n).replace(/₹/, '<span class="cur">₹</span>')
+                          .replace(/,/g, '<span class="sep">,</span>');
 
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -1292,15 +1472,15 @@ function renderHero() {
   document.getElementById("hero").innerHTML = `
     <div>
       <div class="label">Waiting to be invested</div>
-      <div class="figure">${fmt(pending)}</div>
+      <div class="figure">${fmtBig(pending)}</div>
       <div class="sublabel">Budget credited so far, minus what you have actually bought.</div>
     </div>
     <div class="side">
-      <div><div class="label">Budget / month</div><div class="v">${fmt(monthly)}</div></div>
+      <div><div class="label">Budget / month</div><div class="v">${fmtBig(monthly)}</div></div>
       <div><div class="label">Needs action</div>
         <div class="v">${urgent} of ${S.buckets.length} bucket${S.buckets.length === 1 ? "" : "s"}</div></div>
       <div><div class="label">Lapsed so far</div>
-        <div class="v" ${lapsed > 0 ? 'style="color:var(--danger-text)"' : ""}>${fmt(lapsed)}</div></div>
+        <div class="v${lapsed > 0 ? " v-danger" : ""}">${fmtBig(lapsed)}</div></div>
     </div>`;
 }
 
@@ -1344,7 +1524,7 @@ function renderDash() {
       </div>
 
       <div class="pending-row">
-        <span class="amt">${fmt(L.pending)}</span>
+        <span class="amt">${fmtBig(L.pending)}</span>
         <span class="since">pending · ${since}</span>
       </div>
 
@@ -1466,28 +1646,33 @@ function renderLedger() {
       <h3>${esc(b.name)} <span class="muted" style="font-weight:400">
         · credited ${fmt(L.credited)} · deployed ${fmt(L.deployed)}
         · pending ${fmt(L.pending)}${L.lapsedTotal ? " · lapsed " + fmt(L.lapsedTotal) : ""}</span></h3>
+      <!-- data-label is what the phone layout reads: below 620px the header row is
+           hidden and every cell prints its own label from this attribute, so the
+           labels live in one place instead of being duplicated per breakpoint. -->
       <table class="grid">
         <thead><tr><th>Month</th><th>Credited</th><th>Deployed</th><th>Lapsed</th><th>Pending after</th></tr></thead>
         <tbody>${L.rows.slice().reverse().map(r => `<tr>
           <td>${mLabel(r.month)}</td>
-          <td>${r.credited ? fmt(r.credited) : "—"}</td>
-          <td>${r.deployed ? fmt(r.deployed) : "—"}</td>
-          <td class="${r.lapsed ? "lapse" : ""}">${r.lapsed ? "−" + fmt(r.lapsed) : "—"}</td>
-          <td>${fmt(r.balance)}</td></tr>`).join("")}</tbody>
+          <td data-label="Credited">${r.credited ? fmt(r.credited) : "—"}</td>
+          <td data-label="Deployed">${r.deployed ? fmt(r.deployed) : "—"}</td>
+          <td data-label="Lapsed" class="${r.lapsed ? "lapse" : ""}">${r.lapsed ? "−" + fmt(r.lapsed) : "—"}</td>
+          <td data-label="Pending after">${fmt(r.balance)}</td></tr>`).join("")}</tbody>
       </table>
     </div>`;
   }).join("") + `
     <div class="panel glass">
       <h3>Activity</h3>
       ${activity.length ? `<table class="grid">
-        <thead><tr><th>Date</th><th>Bucket</th><th>Action</th><th>Amount</th><th>Note</th></tr></thead>
+        <!-- six columns in the body, so six here: the Delete cell had no <th> at
+             all, which left thead and tbody disagreeing about the column count -->
+        <thead><tr><th>Date</th><th>Bucket</th><th>Action</th><th>Amount</th><th>Note</th><th><span class="sr">Actions</span></th></tr></thead>
         <tbody>${activity.map(a => `<tr>
           <td>${dLabel(a.date)}</td>
-          <td>${esc(nameOf(a.bucketId))}</td>
-          <td>${a.t === "buy" ? "Bought" : "Waited"}</td>
-          <td>${a.t === "buy" ? fmt(a.amountInr) + (a.ccy === "USD" ? ` <span class="muted">(${usd(a.rawAmount)} @ ${a.fx})</span>` : "") : "—"}</td>
-          <td>${esc((a.member ? a.member + " · " : "") + (a.note || a.reason || ""))}</td>
-          <td style="text-align:right"><button class="btn sm danger" onclick="delEntry('${a.t}','${a.id}')">Delete</button></td>
+          <td data-label="Bucket">${esc(nameOf(a.bucketId))}</td>
+          <td data-label="Action">${a.t === "buy" ? "Bought" : "Waited"}</td>
+          <td data-label="Amount">${a.t === "buy" ? fmt(a.amountInr) + (a.ccy === "USD" ? ` <span class="muted">(${usd(a.rawAmount)} @ ${a.fx})</span>` : "") : "—"}</td>
+          <td data-label="Note">${esc((a.member ? a.member + " · " : "") + (a.note || a.reason || ""))}</td>
+          <td class="row-act" style="text-align:right"><button class="btn sm danger" onclick="delEntry('${a.t}','${a.id}')">Delete</button></td>
         </tr>`).join("")}</tbody></table>` : `<p class="muted">No purchases or waits logged yet.</p>`}
     </div>`;
 }
@@ -2144,6 +2329,13 @@ function setSyncBadge(state, why) {
   el.classList.toggle("s-warn", state === "warn");
   el.classList.toggle("s-pend", state === "pend");
   el.classList.toggle("s-busy", state === "busy");
+  /* Mirror the two states that need answering onto the kebab: on a phone this
+     button is inside a closed menu, and a warning nobody can see is not one. */
+  const kb = document.getElementById("btn-menu");
+  if (kb) {
+    kb.classList.toggle("s-warn", state === "warn");
+    kb.classList.toggle("s-pend", state === "pend");
+  }
   const meta = lsGet(SYNC_META, {}) || {};
   el.textContent = state === "busy" ? "Sync…"
     : state === "warn" ? "Sync !"
@@ -2324,6 +2516,27 @@ document.getElementById("btn-add").onclick = () => editBucket();
 document.getElementById("btn-save").onclick = saveToFile;
 document.getElementById("btn-load").onclick = loadFromFile;
 document.getElementById("btn-sync").onclick = syncPanel;
+
+/* The kebab only does anything below 620px. Above it, .actions is a plain row and
+   the .open class is inert — so rotating a phone into landscape needs no resize
+   handler to tidy up, which is the one thing this file will not add back. */
+const kebabBtn = document.getElementById("btn-menu");
+const topMenu = document.getElementById("top-menu");
+function closeTopMenu() {
+  topMenu.classList.remove("open");
+  kebabBtn.setAttribute("aria-expanded", "false");
+}
+kebabBtn.onclick = e => {
+  e.stopPropagation();                       // or the document handler below shuts it again
+  const open = !topMenu.classList.contains("open");
+  topMenu.classList.toggle("open", open);
+  kebabBtn.setAttribute("aria-expanded", String(open));
+};
+/* Closed on any click inside, not per button: all six either act at once or open
+   a modal, and none of them wants the menu still hanging over the result. */
+topMenu.addEventListener("click", closeTopMenu);
+document.addEventListener("click", closeTopMenu);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeTopMenu(); });
 
 /* Lite defaults ON. It was chosen for a streamed desktop, but the measured
    reason outlived that: the translucent grid rasters ~5x (see the stylesheet
