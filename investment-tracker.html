@@ -448,6 +448,35 @@
   .top-actions { margin-left: auto; display: flex; gap: 7px; align-items: center; position: relative; }
   .actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
 
+  /* Square, so it reads as an icon rather than a very short label, and sized to
+     match the kebab it sits beside. The glyph is ↻ for the same reason the kebab
+     draws its dots in CSS: it is one character, it needs no SVG, and unlike ⋮ the
+     phone fonts agree about it. */
+  /* All three classes, not just .iconbtn: .btn.sm sets 12.5px, matches on two
+     classes, and is declared further down the sheet — so it won the size back and
+     left the glyph small enough to read as a typo rather than an icon. Specificity
+     settles it here rather than relying on where in the file this sits. */
+  .btn.sm.iconbtn {
+    width: 34px; height: 28px; padding: 0; font-size: 16px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  /* Above the phone breakpoint there is no kebab to sit before, and a lone icon in
+     front of "Add bucket" reads as an accident rather than a decision — so order
+     moves it to the end of the row. Below 740px the row becomes the dropdown and
+     source order applies again, which is a refresh immediately left of the kebab. */
+  #btn-refresh { order: 3; }
+  #top-menu { order: 2; }
+  /* The spin lives on the inner span, not the button: .btn already owns transform
+     for its hover lift, and an animation on the same property would fight it.
+     Transform-only and only while a request is in flight — the two conditions
+     this file holds every animation to. */
+  .iconbtn.spin { pointer-events: none; opacity: 0.6; }
+  .iconbtn.spin .ic-refresh { animation: icspin 0.8s linear infinite; }
+  @keyframes icspin { to { transform: rotate(1turn); } }
+  @media (prefers-reduced-motion: reduce) {
+    .iconbtn.spin .ic-refresh { animation: none; }
+  }
+
   /* Hidden until the phone breakpoint. Dots are drawn with a box-shadow pair off
      one 3.5px node — no glyph, because ⋮ is one of the characters phone fonts
      disagree about most, and no SVG for three dots. */
@@ -530,23 +559,28 @@
   body.dirty .dot-unsaved { display: inline-block; }
 
   /* ---------- big money: the currency mark, set as notation ----------
-     Measured at the hero's 52px in Segoe UI, ₹ has a 28.9px advance and a 36px
-     ascent, against 28.9 and 37 for a digit — the same width, the same weight,
-     almost the same height. So at display sizes the eye reads it as a tenth
+     Measured in Segoe UI at 52px, which is what the hero was when this was
+     worked out: ₹ has a 28.9px advance and a 36px ascent, against 28.9 and 37
+     for a digit — the same width, the same weight, almost the same height. The
+     ratios are what matter and they do not change with size, so the rule below
+     still holds now the hero is 36px. At display sizes the eye reads it as a tenth
      numeral with bars through it rather than as a unit, and it lands first,
      before the number it is supposed to qualify. Set as its own node it goes
      back to being notation: two thirds the size, one weight lighter, and held
      at 70% of whatever the figure's own colour is — currentColor, not a fixed
      grey, so the red lapsed figure keeps a red mark and nothing has to be kept
      in step by hand.
-     Everything here is in em, so one rule serves the 52px hero figure, the 28px
-     card figure and the 20px side stats. fmt() itself is untouched and still
+     Everything here is in em, so one rule serves the 36px hero figure, the 24px
+     card figure and the 17px side stats. money() itself is untouched and still
      returns a plain string: at 12–13px in a table the inline glyph is correctly
-     proportioned, and that string still has to go into titles and attributes. */
+     proportioned, and that string still has to go into titles and attributes.
+     $ takes the same rule for the same reason and by the same arithmetic — it is
+     drawn about a cap height tall and near-symmetric about the S's middle, so its
+     optical centre sits where ₹'s does, and the 0.21em lift lands both. */
   .cur {
     font-size: 0.63em; font-weight: 500;
     /* the pair-gap the number needs is smaller than a space and larger than the
-       figure's own -0.03em tracking leaves, so it is stated rather than inherited.
+       figure's own negative tracking leaves, so it is stated rather than inherited.
        Kept tight because tabular figures already carry their own: a 1 sits in the
        same slot as a 0, so its side bearings add a few px of air that no margin
        here can see. */
@@ -573,8 +607,9 @@
   .sep { color: color-mix(in oklab, currentColor 70%, transparent); }
   /* Except on a figure that is already carrying colour as meaning. --danger-text
      measures 5.49:1 on the hero surface, and taking 30% of it away leaves the mark
-     at 3.34 — fine as large text in the 40px figure, but the same rule reaches the
-     20px side stats, where the mark comes out at 12.6px and owes the full 4.5:1.
+     at 3.34, short of the 4.5:1 that small text owes. Nothing here is exempt as
+     large text: at weight 500 the mark would have to clear 24px, and 0.63 of even
+     the 36px figure is 22.7 — let alone the 17px side stats, where it is 10.7.
      No loss: the red is doing the emphasis, and the size and weight step alone is
      already enough to read the mark as notation. */
   .v-danger .cur, .v-danger .sep { color: currentColor; }
@@ -587,19 +622,48 @@
   }
   /* solid, not gradient-clipped: this is the one figure everything hangs
      off, so it gets full text contrast rather than a fade into the accent */
+  /* 36px, down from 52px. Two currencies on one line and two decimals on the
+     dollar made the old size a wall — "₹80,000 · $1,200.00" at 52px ran most of
+     the way across the pane — and a figure only has to be the largest thing on
+     the page to be read first, not large in absolute terms. Tracking eased from
+     -0.03em to -0.02em to match: negative tracking is a correction for the gaps
+     display sizes open up, and there are fewer of them to close at 36px. */
   .hero .figure {
-    font-size: 52px; font-weight: 600; line-height: 1.05; letter-spacing: -0.03em;
+    font-size: 36px; font-weight: 600; line-height: 1.05; letter-spacing: -0.02em;
     color: var(--text-primary);
     /* proportional digits make a 1 a third the width of a 0, so recording one buy
        used to shift every digit sideways. At this size that reads as the whole
        figure jumping. */
     font-variant-numeric: tabular-nums;
   }
+  /* ---------- two currencies, set side by side and never added ----------
+     A rupee total and a dollar total go on one line because they answer the same
+     question, and they get a separator that makes no arithmetic claim: a plus
+     would say they sum, and a slash reads as "per". The middle dot is already
+     this file's separator everywhere else — "credited ₹x · deployed ₹y" — so it
+     carries no new meaning to learn.
+     baseline, not centre: the two figures are the same size but the dollar one is
+     usually shorter, and aligning their boxes would float the smaller number.
+     Wrapping is the phone's escape hatch — at 375px a six-figure rupee sum and a
+     four-figure dollar sum just fit, and a seventh digit drops the second to its
+     own line rather than off the edge. */
+  .moneypair { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 12px; }
+  /* Dimmed and scaled like the currency mark it sits between, so the three
+     non-numerals on the line — ₹, · and $ — read as one register. It is a
+     sibling of the figures rather than a child, so it cannot inherit their size
+     in em the way .cur does; it is told which figure size it stands between
+     instead, at the same 0.63 ratio (0.63 × 36, × 30, × 17). No vertical-align:
+     a middle dot is drawn at about half x-height already, close enough to the
+     digits' optical centre that a nudge only ever looks like a nudge. */
+  .fig-sep { font-weight: 500; letter-spacing: 0; line-height: 1.05;
+    color: color-mix(in oklab, currentColor 70%, transparent); }
+  .fig-sep[data-for="figure"] { font-size: 23px; }
+  .fig-sep[data-for="v"]      { font-size: 11px; }
   .hero .sublabel { color: var(--text-secondary); font-size: 12.5px; margin-top: 4px; }
   .hero .label { color: var(--text-secondary); font-size: 11.5px; margin-bottom: 3px;
     text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
   .hero .side { display: flex; gap: 30px; flex-wrap: wrap; padding-bottom: 6px; }
-  .hero .side .v { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+  .hero .side .v { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
   /* a class rather than the inline style this used to be, so the rule above can
      reach inside it and leave the mark undimmed */
   .hero .side .v-danger { color: var(--danger-text); }
@@ -688,7 +752,10 @@
   }
 
   .pending-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .pending-row .amt { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  /* 24px, following the hero down from 52 to 36 — it is the same figure one
+     level in, and at the old 28px it would have sat within a few px of the total
+     that is supposed to outrank it. */
+  .pending-row .amt { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .pending-row .since { color: var(--text-secondary); font-size: 12.5px; }
 
   /* meter — the fill encodes a value, so gradient + glow only, never motion */
@@ -962,6 +1029,9 @@
     .brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .kebab { display: inline-flex; align-items: center; justify-content: center; }
+    /* Back to source order, which puts the refresh immediately left of the kebab.
+       The order: 3 it drops here is a desktop-only tidy-up — see that rule. */
+    #btn-refresh { order: 0; }
     .actions {
       /* the six buttons stop being a wrapping row and become the dropdown, which
          is why the header is back to a single row on a phone */
@@ -990,7 +1060,10 @@
   @media (max-width: 620px) {
     .wrap { padding: 10px 13px 80px; }
     .hero { gap: 20px; padding: 17px 18px; }
-    .hero .figure { font-size: 40px; }
+    .hero .figure { font-size: 30px; }
+    .fig-sep[data-for="figure"] { font-size: 19px; }   /* 0.63 × 30, as above */
+    /* the two totals sit closer once there is less room for them to sit in */
+    .moneypair { column-gap: 9px; }
     .hero .side { gap: 20px; }
     header.top { top: 6px; }
     nav.tabs { display: flex; width: 100%; }
@@ -1028,8 +1101,8 @@
       display: block; font-weight: 600; font-size: 13.5px; padding-bottom: 4px;
     }
     /* margin-right:auto rather than justify-content:space-between on the cell:
-       a value can be more than one node (the USD amount is "₹41,750" plus a muted
-       "($500 @ 83.5)"), and space-between would spread those apart across the row
+       a value can be more than one node (a dollar buy is "$500.00" plus a muted
+       "(₹41,750 at 83.5)"), and space-between would spread those apart across the row
        instead of keeping them together at the right. Pushing only the label left
        groups however many value nodes there are. */
     table.grid td:not(:first-child)::before {
@@ -1056,7 +1129,17 @@
     </div>
     <div class="top-actions">
       <span class="dot-unsaved" title="Unsaved changes"></span>
-      <!-- Phone-first: below 620px .actions stops being a row in the header and
+      <!-- Refresh is the one action that stays out in the bar at every width.
+           Folding it in would cost a tap to open the kebab and a tap to close
+           whatever it left open, and its whole justification is being one tap:
+           the alternative is reloading the page. Hidden until sync is configured
+           — with no cloud behind it there is nothing to refresh from, and a
+           control that does nothing is worse than an absent one. -->
+      <button class="btn sm iconbtn" id="btn-refresh" hidden
+              aria-label="Refresh from GitHub" title="Refresh from GitHub">
+        <span class="ic-refresh" aria-hidden="true">↻</span>
+      </button>
+      <!-- Phone-first: below 740px .actions stops being a row in the header and
            becomes the kebab's dropdown. The SAME six buttons move — they are not
            duplicated into a second menu — so every label the JS rewrites
            (Sync ↑, Light, Full glass) stays correct in both layouts with no
@@ -1240,20 +1323,39 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 const inr = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 const fmt  = n => "₹" + inr.format(Math.round(n || 0));
-const usd  = n => "$" + new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n || 0);
+/* Always two places, never dropped. A dollar bucket's ledger holds real buy
+   amounts — three shares at $47.12 — so unlike rupees the fraction is part of
+   the figure, and a column where $1,200 and $141.36 have different numbers of
+   decimals stops lining up under tabular-nums. Both bounds are set because left
+   to choose for itself Intl prints "$250.5". */
+const usdFmt = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = n => "$" + usdFmt.format(Number(n) || 0);
 
-/* The display-size form of fmt: same digits, but the currency mark and the
-   grouping commas become their own nodes so the .cur / .sep rules can set them
-   as notation instead of as numerals. See that rule for why.
-   Only for the three places a figure is set 20px or larger — the hero total, the
-   hero side stats and the card's pending amount. Everywhere else keeps fmt(),
-   which stays a plain string: the tables are 13px where the inline glyph is
+/* A bucket's currency denominates its whole ledger — the budget, the opening
+   backlog, the monthly lots, the lapses and the pending figure are all in it —
+   so nearly every figure in this file is "an amount, in some bucket's currency"
+   rather than an amount in rupees. money() is that pair, and ccyOf() reads the
+   currency off a bucket, defaulting to INR so a plan written before the field
+   existed still loads. Nothing here converts one into the other; see renderHero
+   for why not. */
+const ccyOf = b => (b && b.currency === "USD") ? "USD" : "INR";
+const money = (n, ccy) => ccy === "USD" ? usd(n) : fmt(n);
+
+/* The display-size form of money(): the same string, but the currency mark and
+   the grouping separators become their own nodes so the .cur / .sep rules can
+   set them as notation instead of as numerals. See that rule for why.
+   Only for the places a figure is set 17px or larger — the hero totals, the
+   hero side stats and the card's pending amount. Everywhere else keeps money(),
+   which stays a plain string: the tables are 13px, where the inline glyph is
    already correctly proportioned, and a string is what a title= or an alert can
-   take. Reading the characters out of fmt()'s own output rather than
+   take. Reading the characters back out of money()'s own output rather than
    reformatting means there is one number format in this file, not two that can
-   drift; and the output is digits, commas and ₹ only, so it needs no escaping. */
-const fmtBig = n => fmt(n).replace(/₹/, '<span class="cur">₹</span>')
-                          .replace(/,/g, '<span class="sep">,</span>');
+   drift; and that output is digits, separators and a single ₹ or $, so it needs
+   no escaping. The mark is matched anchored, so a $ is never mistaken for the
+   $1 backreference syntax and the replacer is a function besides. */
+const moneyBig = (n, ccy) => money(n, ccy)
+  .replace(/^[₹$]/, s => `<span class="cur">${s}</span>`)
+  .replace(/,/g, '<span class="sep">,</span>');
 
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -1319,6 +1421,17 @@ function purchasesOf(id) {
                     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/* What a purchase takes out of its bucket's lots, in the bucket's own currency.
+   A dollar bucket is funded in dollars, so a dollar buy consumes its dollar
+   amount; `amountInr` on that record is a note of what actually left the bank at
+   the rate of the day, not a figure the ledger balances against. Reading it the
+   other way round — dollar lots credited from a rupee budget and drained by a
+   rupee conversion — was the bug: $500 against a 500 budget cleared forty-odd
+   months at once, or none, depending on which unit you had typed. */
+const deployedOf = (b, p) => ccyOf(b) === "USD"
+  ? (Number(p.rawAmount) || 0)
+  : (Number(p.amountInr) || Number(p.rawAmount) || 0);
+
 function computeLedger(b) {
   const cap = Number(S.settings.capMonths) || 4;
   const start = b.start || (b.allocations && b.allocations[0] && b.allocations[0].from) || thisMonth();
@@ -1351,7 +1464,7 @@ function computeLedger(b) {
     //     and the month table reconciles with the totals.
     let deployedThis = 0;
     while (pi < px.length && px[pi].date.slice(0, 7) <= m) {
-      let amt = Number(px[pi].amountInr) || 0;
+      let amt = deployedOf(b, px[pi]);
       deployedThis += amt; deployed += amt;
       for (const lot of lots) {
         if (amt <= 0) break;
@@ -1370,7 +1483,7 @@ function computeLedger(b) {
   // Future-dated purchases: still deployed, folded into the latest row so the table reconciles.
   let ahead = 0;
   for (; pi < px.length; pi++) {
-    const amt = Number(px[pi].amountInr) || 0;
+    const amt = deployedOf(b, px[pi]);
     deployed += amt; ahead += amt;
     let rest = amt;
     for (const lot of lots) {
@@ -1395,6 +1508,10 @@ function computeLedger(b) {
   const reviewed = [last && last.date, lastSkip && lastSkip.date].filter(Boolean).sort().pop() || null;
 
   return {
+    /* Every figure below is in this currency. Carried on the ledger rather than
+       looked up from the bucket at each call site, because most of them — the
+       status badge, the buy sheet, the month buttons — only ever hold an L. */
+    ccy: ccyOf(b),
     pending, monthly, cap, capAmount: monthly * cap, advance, notStarted, startMonth: start,
     // The surviving month-by-month lots, oldest first — what a partial buy eats
     // into, and what the month buttons on the buy sheet are built from. `amount`
@@ -1429,7 +1546,7 @@ function statusOf(L) {
   if (L.notStarted)     return { key: "idle",  st: "--st-idle", ic: "•", label: "Starts " + mLabel(L.startMonth) };
   if (L.monthly <= 0)   return { key: "idle",  st: "--st-idle", ic: "•", label: "No budget set" };
   if (L.pending <= 0)   return { key: "clear", st: "--st-good",    ic: "✓",
-                                 label: L.advance > 0 ? "Paid ahead by " + fmt(L.advance) : "Fully deployed" };
+                                 label: L.advance > 0 ? "Paid ahead by " + money(L.advance, L.ccy) : "Fully deployed" };
   /* The number in the words is the COUNT of unbought months; the thresholds are
      the AGE of the oldest one. Using the age for both said "1 month behind" on a
      bucket holding two unbought months, because the current month contributes
@@ -1461,26 +1578,43 @@ function tracksLabel(b) {
 
 function renderHero() {
   const rows = S.buckets.map(b => ({ b, L: ledgerOf(b) }));
-  const pending = rows.reduce((t, r) => t + r.L.pending, 0);
-  const monthly = rows.reduce((t, r) => t + r.L.monthly, 0);
-  const lapsed  = rows.reduce((t, r) => t + r.L.lapsedTotal, 0);
   /* "due" counts too: a bucket with this month's money still sitting in it is
      something to do, which is the whole point of the plan. Only fully-deployed
      and not-yet-started buckets are off this list. */
-  const urgent  = rows.filter(r => ["cap", "act", "due"].includes(statusOf(r.L).key)).length;
+  const urgent = rows.filter(r => ["cap", "act", "due"].includes(statusOf(r.L).key)).length;
+
+  /* One column per currency actually in play, in a fixed order so the hero does
+     not reshuffle when a bucket is added, and skipped entirely when nothing is
+     held in it — a plan with no dollar bucket looks exactly as it did before.
+     Never a single sum: a rupee lot and a dollar lot are different money, this
+     app holds no exchange rate to bridge them with (each buy carries only the
+     rate of its own day, and there is no price fetching here by design), so
+     adding them would invent a number. Showing one and hiding the other would
+     be worse — half the plan, silently missing. So they are set side by side,
+     separated by a mark that makes no arithmetic claim. */
+  const held = ["INR", "USD"].filter(c => rows.some(r => r.L.ccy === c));
+  const live = held.length ? held : ["INR"];   // an empty plan still shows a ₹0
+  const sum = (c, k) => rows.filter(r => r.L.ccy === c).reduce((t, r) => t + r.L[k], 0);
+  const pair = (k, cls) => live.map(c => {
+    const v = sum(c, k);
+    return `<div class="${cls}${cls === "v" && k === "lapsedTotal" && v > 0 ? " v-danger" : ""}"
+      >${moneyBig(v, c)}</div>`;
+  }).join(`<span class="fig-sep" data-for="${cls}" aria-hidden="true">·</span>`);
 
   document.getElementById("hero").innerHTML = `
     <div>
       <div class="label">Waiting to be invested</div>
-      <div class="figure">${fmtBig(pending)}</div>
-      <div class="sublabel">Budget credited so far, minus what you have actually bought.</div>
+      <div class="moneypair">${pair("pending", "figure")}</div>
+      <div class="sublabel">Budget credited so far, minus what you have actually bought.${
+        live.length > 1 ? " Rupee and dollar buckets are counted separately — nothing is converted." : ""}</div>
     </div>
     <div class="side">
-      <div><div class="label">Budget / month</div><div class="v">${fmtBig(monthly)}</div></div>
+      <div><div class="label">Budget / month</div>
+        <div class="moneypair">${pair("monthly", "v")}</div></div>
       <div><div class="label">Needs action</div>
         <div class="v">${urgent} of ${S.buckets.length} bucket${S.buckets.length === 1 ? "" : "s"}</div></div>
       <div><div class="label">Lapsed so far</div>
-        <div class="v${lapsed > 0 ? " v-danger" : ""}">${fmtBig(lapsed)}</div></div>
+        <div class="moneypair">${pair("lapsedTotal", "v")}</div></div>
     </div>`;
 }
 
@@ -1518,27 +1652,27 @@ function renderDash() {
       <div class="card-head">
         <div>
           <div class="nm">${esc(b.name)}</div>
-          <div class="sub">${fmt(L.monthly)}/month · ${esc(tracksLabel(b))}</div>
+          <div class="sub">${money(L.monthly, L.ccy)}/month · ${esc(tracksLabel(b))}</div>
         </div>
         <span class="status st-${st.key}" style="--st:var(${st.st})"><span class="ic">${st.ic}</span>${st.label}</span>
       </div>
 
       <div class="pending-row">
-        <span class="amt">${fmtBig(L.pending)}</span>
+        <span class="amt">${moneyBig(L.pending, L.ccy)}</span>
         <span class="since">pending · ${since}</span>
       </div>
 
       <div class="meter" style="--st:var(${st.st})">
         <div class="track"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>
-        <div class="ticks"><span>₹0</span><span>${L.cap}-month cap · ${fmt(L.capAmount)}</span></div>
+        <div class="ticks"><span>${money(0, L.ccy)}</span><span>${L.cap}-month cap · ${money(L.capAmount, L.ccy)}</span></div>
       </div>
 
       <div class="kv">
         <div><span>Last bought</span> <b>${L.lastPurchase ? dLabel(L.lastPurchase.date) : "never"}</b>${
           L.lastPurchase ? ` <span>(${daysAgo(L.lastPurchase.date)}d)</span>` : ""}</div>
         <div><span>Reviewed</span> <b>${rev == null ? "never" : rev + "d ago"}</b></div>
-        ${L.lapsedTotal > 0 ? `<div><span>Lapsed</span> <b style="color:var(--danger-text)">${fmt(L.lapsedTotal)}</b></div>` : ""}
-        ${L.advance > 0 ? `<div><span>Bought ahead</span> <b>${fmt(L.advance)}</b></div>` : ""}
+        ${L.lapsedTotal > 0 ? `<div><span>Lapsed</span> <b style="color:var(--danger-text)">${money(L.lapsedTotal, L.ccy)}</b></div>` : ""}
+        ${L.advance > 0 ? `<div><span>Bought ahead</span> <b>${money(L.advance, L.ccy)}</b></div>` : ""}
       </div>
 
       <div class="card-actions">
@@ -1578,9 +1712,9 @@ function renderPlan() {
         return `<div class="plan-item">
           <div>
             <div class="nm">${esc(b.name)} <span class="chip">${b.kind}</span>${
-              b.currency === "USD" ? ' <span class="chip">USD</span>' : ""}</div>
+              ccyOf(b) === "USD" ? ' <span class="chip">USD</span>' : ""}</div>
             <div class="meta">
-              ${allocs.map(a => `${fmt(a.amount)}/mo from ${mLabel(a.from)}`).join(" → ")}
+              ${allocs.map(a => `${money(a.amount, L.ccy)}/mo from ${mLabel(a.from)}`).join(" → ")}
               · started ${mLabel(b.start)}
               ${b.kind === "group" ? "" : " · " + esc(tracksLabel(b))}
               ${(b.members || []).length ? " · " + b.members.map(m => esc(m.name)).join(", ") : ""}
@@ -1640,12 +1774,31 @@ function renderLedger() {
 
   const nameOf = id => (S.buckets.find(b => b.id === id) || {}).name || "(deleted)";
 
+  /* What was bought, in the currency it was bought in — that is the fact, and
+     the ledger it belongs to is denominated the same way. The rupee cost of a
+     dollar buy follows in parentheses when it is known, because it is a real and
+     useful number (it is what left the bank, at the rate of that day) but a
+     secondary one; before, it was the headline and the dollars were the note.
+     `ccy` is read off the purchase rather than off the bucket, so a row logged
+     while the bucket was set to dollars still reads in dollars if the bucket is
+     later switched — the entry records what happened. */
+  const amountCell = a => {
+    if (a.t !== "buy") return "—";
+    const c = a.ccy === "USD" ? "USD" : "INR";
+    const main = money(a.rawAmount != null ? a.rawAmount : a.amountInr, c);
+    if (c !== "USD") return main;
+    return main + (a.amountInr && a.fx
+      ? ` <span class="muted">(${fmt(a.amountInr)} at ${a.fx})</span>` : "");
+  };
+
   host.innerHTML = S.buckets.map(b => {
     const L = ledgerOf(b);
     return `<div class="panel glass">
-      <h3>${esc(b.name)} <span class="muted" style="font-weight:400">
-        · credited ${fmt(L.credited)} · deployed ${fmt(L.deployed)}
-        · pending ${fmt(L.pending)}${L.lapsedTotal ? " · lapsed " + fmt(L.lapsedTotal) : ""}</span></h3>
+      <h3>${esc(b.name)}${L.ccy === "USD" ? ' <span class="chip">USD</span>' : ""}
+        <span class="muted" style="font-weight:400">
+        · credited ${money(L.credited, L.ccy)} · deployed ${money(L.deployed, L.ccy)}
+        · pending ${money(L.pending, L.ccy)}${
+          L.lapsedTotal ? " · lapsed " + money(L.lapsedTotal, L.ccy) : ""}</span></h3>
       <!-- data-label is what the phone layout reads: below 620px the header row is
            hidden and every cell prints its own label from this attribute, so the
            labels live in one place instead of being duplicated per breakpoint. -->
@@ -1653,10 +1806,10 @@ function renderLedger() {
         <thead><tr><th>Month</th><th>Credited</th><th>Deployed</th><th>Lapsed</th><th>Pending after</th></tr></thead>
         <tbody>${L.rows.slice().reverse().map(r => `<tr>
           <td>${mLabel(r.month)}</td>
-          <td data-label="Credited">${r.credited ? fmt(r.credited) : "—"}</td>
-          <td data-label="Deployed">${r.deployed ? fmt(r.deployed) : "—"}</td>
-          <td data-label="Lapsed" class="${r.lapsed ? "lapse" : ""}">${r.lapsed ? "−" + fmt(r.lapsed) : "—"}</td>
-          <td data-label="Pending after">${fmt(r.balance)}</td></tr>`).join("")}</tbody>
+          <td data-label="Credited">${r.credited ? money(r.credited, L.ccy) : "—"}</td>
+          <td data-label="Deployed">${r.deployed ? money(r.deployed, L.ccy) : "—"}</td>
+          <td data-label="Lapsed" class="${r.lapsed ? "lapse" : ""}">${r.lapsed ? "−" + money(r.lapsed, L.ccy) : "—"}</td>
+          <td data-label="Pending after">${money(r.balance, L.ccy)}</td></tr>`).join("")}</tbody>
       </table>
     </div>`;
   }).join("") + `
@@ -1670,7 +1823,7 @@ function renderLedger() {
           <td>${dLabel(a.date)}</td>
           <td data-label="Bucket">${esc(nameOf(a.bucketId))}</td>
           <td data-label="Action">${a.t === "buy" ? "Bought" : "Waited"}</td>
-          <td data-label="Amount">${a.t === "buy" ? fmt(a.amountInr) + (a.ccy === "USD" ? ` <span class="muted">(${usd(a.rawAmount)} @ ${a.fx})</span>` : "") : "—"}</td>
+          <td data-label="Amount">${amountCell(a)}</td>
           <td data-label="Note">${esc((a.member ? a.member + " · " : "") + (a.note || a.reason || ""))}</td>
           <td class="row-act" style="text-align:right"><button class="btn sm danger" onclick="delEntry('${a.t}','${a.id}')">Delete</button></td>
         </tr>`).join("")}</tbody></table>` : `<p class="muted">No purchases or waits logged yet.</p>`}
@@ -1711,10 +1864,21 @@ function editBucket(id) {
         tracks: "", members: [], note: "" }
     : JSON.parse(JSON.stringify(S.buckets.find(x => x.id === id)));
 
-  const allocRows = a => a.map((x, i) => `<div class="allocrow" data-ai="${i}">
+  /* step and placeholder follow the currency, because 500 is a sensible nudge on
+     a rupee budget and an absurd one on a dollar budget. Read from the select
+     rather than from `b`, so switching "Buys in" redraws these correctly. */
+  const curCcy = () => {
+    const sel = document.getElementById("f-ccy");
+    return (sel ? sel.value : b.currency) === "USD" ? "USD" : "INR";
+  };
+  const allocRows = a => {
+    const isUSD = curCcy() === "USD";
+    return a.map((x, i) => `<div class="allocrow" data-ai="${i}">
       <input type="month" value="${x.from}" data-af>
-      <input type="number" min="0" step="500" value="${x.amount}" data-aa placeholder="Amount per month">
+      <input type="number" min="0" step="${isUSD ? "25" : "500"}" value="${x.amount}" data-aa
+        placeholder="${isUSD ? "Dollars per month" : "Rupees per month"}">
       <button class="x btn sm" data-adel title="Remove">×</button></div>`).join("");
+  };
 
   const memRows = m => m.map((x, i) => `<div class="memrow" data-mi="${i}">
       <input value="${esc(x.name)}" data-mn placeholder="Holding name">
@@ -1742,9 +1906,10 @@ function editBucket(id) {
       <div class="field">
         <label for="f-ccy">Buys in</label>
         <select id="f-ccy">
-          <option value="INR" ${b.currency === "INR" ? "selected" : ""}>INR</option>
-          <option value="USD" ${b.currency === "USD" ? "selected" : ""}>USD</option>
+          <option value="INR" ${ccyOf(b) === "INR" ? "selected" : ""}>INR — ₹</option>
+          <option value="USD" ${ccyOf(b) === "USD" ? "selected" : ""}>USD — $</option>
         </select>
+        <div class="hint" id="ccy-hint"></div>
       </div>
     </div>
 
@@ -1765,7 +1930,7 @@ function editBucket(id) {
     </div>
 
     <div class="field">
-      <label>Monthly amount, effective-dated</label>
+      <label>Monthly amount <span class="muted" data-unit></span>, effective-dated</label>
       <div id="alloc-list">${allocRows(b.allocations)}</div>
       <button class="btn sm" id="alloc-add" type="button">Add a change</button>
       <div class="hint">Add a row when you raise the amount — past months keep their old
@@ -1778,7 +1943,7 @@ function editBucket(id) {
         <input id="f-start" type="month" value="${b.start}">
       </div>
       <div class="field">
-        <label for="f-open">Opening backlog</label>
+        <label for="f-open">Opening backlog <span class="muted" data-unit></span></label>
         <input id="f-open" type="number" min="0" step="500" value="${b.openingPending || 0}">
         <div class="hint">Already-pending amount as of that month. Lets you start clean without
           re-entering months of history.</div>
@@ -1800,6 +1965,24 @@ function editBucket(id) {
     };
     $("#f-kind").onchange = syncKind;
 
+    /* The currency is not a label on the buys — it denominates the whole bucket,
+       so the two amount fields on this form are in it too. That was the part
+       nothing said out loud: an unlabelled "Amount per month" on a bucket marked
+       USD is a coin toss, and either reading produced a ledger that balanced
+       dollars against rupees. Now the unit is written next to every field that
+       has one, and it follows the select while you are still deciding. */
+    const syncCcy = () => {
+      const isUSD = curCcy() === "USD";
+      m.querySelectorAll("[data-unit]").forEach(el => el.textContent = isUSD ? "in $" : "in ₹");
+      $("#ccy-hint").textContent = isUSD
+        ? "Everything in this bucket is counted in dollars — the monthly amount below, the backlog, "
+          + "the buys and its whole ledger. The rupee cost of a buy is noted beside it, not converted into it."
+        : "The monthly amount below, the backlog and the buys are all in rupees.";
+      $("#f-open").step = isUSD ? "25" : "500";
+      drawAllocs(readAllocs());
+    };
+    $("#f-ccy").onchange = syncCcy;
+
     // --- allocation rows
     const readAllocs = () => Array.from(m.querySelectorAll("#alloc-list .allocrow")).map(r => ({
       from: r.querySelector("[data-af]").value || thisMonth(),
@@ -1817,6 +2000,7 @@ function editBucket(id) {
       const last = list[list.length - 1] || { from: thisMonth(), amount: 10000 };
       drawAllocs(list.concat([{ from: mStr(mIdx(last.from) + 1), amount: last.amount }]));
     };
+    syncCcy();   // after drawAllocs exists — it redraws the rows to pick up the step
 
     // --- member rows
     const readMems = () => Array.from(m.querySelectorAll("#mem-list .memrow")).map(r => ({
@@ -1884,7 +2068,7 @@ function paidThrough(L) {
     return {
       key: "clear", st: "--st-good", ic: "✓",
       label: mShort(mStr(mIdx(thisMonth()) + ahead)),
-      sub: L.advance > 0 ? "paid through · " + fmt(L.advance) + " sitting ahead" : "paid through"
+      sub: L.advance > 0 ? "paid through · " + money(L.advance, L.ccy) + " sitting ahead" : "paid through"
     };
   }
 
@@ -1898,7 +2082,7 @@ function paidThrough(L) {
   if (done < mIdx(L.startMonth)) {
     return part
       ? { key: "idle", st: "--st-idle", ic: "•", label: mShort(part.month) + " part-paid",
-          sub: fmt(part.left) + " of it still owing" }
+          sub: money(part.left, L.ccy) + " of it still owing" }
       : { key: "idle", st: "--st-idle", ic: "•", label: "Nothing paid yet",
           sub: "running since " + mShort(L.startMonth) };
   }
@@ -1910,7 +2094,7 @@ function paidThrough(L) {
   return {
     key: "clear", st: lapsed ? "--st-idle" : "--st-good", ic: lapsed ? "•" : "✓",
     label: mShort(mStr(done)),
-    sub: (lapsed ? "clear through — but " + fmt(L.lapsedTotal) + " lapsed unbought" : "paid through")
+    sub: (lapsed ? "clear through — but " + money(L.lapsedTotal, L.ccy) + " lapsed unbought" : "paid through")
        + (part ? " · " + mShort(part.month) + " part-paid" : "")
   };
 }
@@ -1924,10 +2108,16 @@ function paidThrough(L) {
    month cost only its remainder. */
 function monthSteps(L) {
   const steps = [];
+  /* To the cent, not to the unit. A button's amount is what gets recorded, so
+     rounding it is not a display choice — round a $250.50 lot to $250 and the
+     button that says it clears the month leaves fifty cents of it open forever.
+     Rupee allocations are whole numbers, so for them this is the same as the
+     Math.round it replaces. */
+  const exact = n => Math.round(n * 100) / 100;
   let run = 0;
   for (const lot of L.openLots) {
     run += lot.left;
-    steps.push({ month: lot.month, amount: Math.round(run), n: steps.length + 1, ahead: false });
+    steps.push({ month: lot.month, amount: exact(run), n: steps.length + 1, ahead: false });
   }
   if (L.monthly > 0) {
     /* The one month ahead. With a backlog it follows the newest open month;
@@ -1939,7 +2129,7 @@ function monthSteps(L) {
       : Math.max(mIdx(thisMonth()) + Math.floor((L.advance || 0) / L.monthly),
                  mIdx(L.startMonth) - 1);
     run += L.monthly;
-    steps.push({ month: mStr(base + 1), amount: Math.round(run), n: steps.length + 1, ahead: true });
+    steps.push({ month: mStr(base + 1), amount: exact(run), n: steps.length + 1, ahead: true });
   }
   return steps;
 }
@@ -1947,12 +2137,14 @@ function monthSteps(L) {
 function buyForm(id) {
   const b = S.buckets.find(x => x.id === id);
   const L = ledgerOf(b);
-  const isUSD = b.currency === "USD";
+  const isUSD = L.ccy === "USD";
   const P = paidThrough(L);
-  /* Rupee buckets only. The lots are held in rupees, so a USD figure cannot be
-     turned into a number of months until the rate for that particular buy is
-     known — that path keeps asking for an amount and a rate. */
-  const steps = isUSD ? [] : monthSteps(L);
+  /* Both currencies now. This used to be rupee buckets only, because the lots
+     were held in rupees whatever the bucket bought in, so a dollar figure could
+     not be turned into a number of months without knowing that buy's rate. A
+     dollar bucket's lots are dollars, so its months are as exact as any other
+     bucket's and the buttons work the same way. */
+  const steps = monthSteps(L);
   const memberField = (b.members || []).length ? `
     <div class="field"><label for="b-mem">Holding</label>
       <select id="b-mem"><option value="">— whole group —</option>
@@ -1972,31 +2164,35 @@ function buyForm(id) {
 
     <p class="muted" style="margin-top:-2px">${
       L.pending > 0
-        ? fmt(L.pending) + " pending" + (L.oldestMonth ? ", oldest from " + mLabel(L.oldestMonth) : "")
+        ? money(L.pending, L.ccy) + " pending" + (L.oldestMonth ? ", oldest from " + mLabel(L.oldestMonth) : "")
           + ". Each button below settles everything up to that month."
         : (L.advance > 0
-            ? "Nothing pending — you are already paid ahead by " + fmt(L.advance) + "."
+            ? "Nothing pending — you are already paid ahead by " + money(L.advance, L.ccy) + "."
             : "Nothing pending right now.")}</p>
 
     ${steps.length ? `
     <div class="buygrid">
       ${steps.map(s => `<button class="btn buychip" type="button" data-buy="${s.amount}">
         <b>+ ${mShort(s.month)}</b>
-        <span class="muted">${fmt(s.amount)}${
+        <span class="muted">${money(s.amount, L.ccy)}${
           s.ahead ? " · ahead" : s.n > 1 ? " · " + s.n + " months" : ""}</span></button>`).join("")}
     </div>` : ""}
 
     ${isUSD ? `
     <div class="field">
-      <label for="b-amt">Amount (USD)</label>
+      <label for="b-amt">Or an exact amount</label>
       <div class="customrow">
-        <input id="b-amt" type="number" min="0" step="0.01" placeholder="e.g. 250">
+        <input id="b-amt" type="number" min="0" step="0.01" placeholder="e.g. 141.36">
         <button class="btn primary" id="b-save">Record</button>
       </div>
+      <div class="hint">In dollars — three shares at $47.12 rarely lands on a whole month, and the
+        remainder stays open on the oldest one.</div>
     </div>
-    <div class="field"><label for="b-fx">USD/INR rate used</label>
+    <div class="field"><label for="b-fx">USD/INR rate <span class="muted">(optional)</span></label>
       <input id="b-fx" type="number" step="0.01" min="1" placeholder="e.g. 88.50">
-      <div class="hint">The budget is tracked in rupees, so the buy is converted at the rate you actually got.</div>
+      <div class="hint">This bucket's ledger is in dollars, so the rate changes nothing in it. Fill it
+        in and the rupee cost is stored beside the buy, in the Ledger tab, as a record of what
+        actually left your bank.</div>
     </div>` : `
     <div class="field">
       <label for="b-months">Or pay for a number of months</label>
@@ -2009,7 +2205,7 @@ function buyForm(id) {
 
     ${memberField}
 
-    <p class="hint" style="margin-top:14px">Dated today${L.monthly > 0 ? ", at " + fmt(Math.round(L.monthly)) + " a month" : ""}.
+    <p class="hint" style="margin-top:14px">Dated today${L.monthly > 0 ? ", at " + money(L.monthly, L.ccy) + " a month" : ""}.
       More months than the backlog is fine — the extra carries forward, so the coming months arrive
       already covered and won't show as late. A wrong entry comes back out from the Ledger tab.</p>
 
@@ -2019,34 +2215,42 @@ function buyForm(id) {
   `, m => {
     const monEl = m.querySelector("#b-months");
     const amtEl = m.querySelector("#b-amt");
+    const fxEl = m.querySelector("#b-fx");
     const memSel = m.querySelector("#b-mem");
 
-    const record = (raw, fx) => {
+    /* `raw` is always in the bucket's own currency — that is what the ledger
+       consumes and what gets read back out. The rate is a rupee-cost annotation
+       on a dollar buy and nothing more: stored when it was given, left null when
+       it was not, so an unrated buy carries no invented rupee figure rather than
+       a wrong one. */
+    const record = raw => {
+      const fx = isUSD ? (Number(fxEl && fxEl.value) || null) : 1;
       S.purchases.push({
         id: uid(), bucketId: b.id, date: todayISO(),
-        ccy: b.currency, rawAmount: raw, fx,
-        amountInr: Math.round(raw * fx),
+        ccy: L.ccy, rawAmount: raw, fx,
+        amountInr: isUSD ? (fx ? Math.round(raw * fx) : null) : Math.round(raw),
         member: memSel ? memSel.value : "", note: ""
       });
       markDirty(); closeModal(); renderAll();
-      toast(fmt(Math.round(raw * fx)) + " recorded");
+      toast(money(raw, L.ccy) + " recorded");
     };
 
     m.querySelectorAll("[data-buy]").forEach(btn =>
-      btn.onclick = () => record(Number(btn.dataset.buy), 1));
+      btn.onclick = () => record(Number(btn.dataset.buy)));
 
     /* Say out loud which months a count of months actually settles. The buttons
        are exact because they are built from the lots; this box multiplies the
        monthly figure instead, so on a part-paid month the two disagree — by
        design, and this line is what makes the difference visible. */
     const effectEl = m.querySelector("#b-effect");
-    const monthsAmount = () => Math.round((Number(monEl.value) || 0) * L.monthly);
+    const M = x => money(x, L.ccy);
+    const monthsAmount = () => Math.round((Number(monEl.value) || 0) * L.monthly * 100) / 100;
     const describe = () => {
       const n = Number(monEl.value) || 0;
       const amt = monthsAmount();
       if (!(n > 0) || !(amt > 0)) {
         effectEl.textContent = L.monthly > 0
-          ? "At " + fmt(Math.round(L.monthly)) + " a month — type 2 for two months, and so on."
+          ? "At " + M(L.monthly) + " a month — type 2 for two months, and so on."
           : "This bucket has no monthly amount, so use the buttons above.";
         return;
       }
@@ -2065,33 +2269,31 @@ function buyForm(id) {
       if (cleared.length) parts.push("clears " + (cleared.length > 2
         ? mLabel(cleared[0]) + " through " + mLabel(cleared[cleared.length - 1])
         : cleared.map(mLabel).join(" and ")));
-      if (partial) parts.push("leaves " + fmt(partial.left) + " of " + mLabel(partial.month));
+      if (partial) parts.push("leaves " + M(partial.left) + " of " + mLabel(partial.month));
       if (rest > 0) {
         const ahead = L.monthly > 0 ? Math.floor(rest / L.monthly) : 0;
-        parts.push(fmt(rest) + " carries forward" + (ahead >= 1
+        parts.push(M(rest) + " carries forward" + (ahead >= 1
           ? ", covering the next " + (ahead === 1 ? "month" : ahead + " months") : ""));
       }
       const after = Math.max(0, L.pending - amt);
-      effectEl.textContent = fmt(amt) + " — "
+      effectEl.textContent = M(amt) + " — "
         + (parts.length ? parts.join("; ") : "nothing pending to clear")
-        + ". " + (after > 0 ? fmt(after) + " still pending after this." : "Nothing left pending.");
+        + ". " + (after > 0 ? M(after) + " still pending after this." : "Nothing left pending.");
     };
     if (effectEl) { monEl.oninput = describe; describe(); }
 
     const save = () => {
       if (isUSD) {
         const raw = Number(amtEl.value);
-        if (!(raw > 0)) { toast("Enter an amount"); return; }
-        const fx = Number(m.querySelector("#b-fx").value);
-        if (!(fx > 0)) { toast("Enter the USD/INR rate"); return; }
-        record(raw, fx);
+        if (!(raw > 0)) { toast("Enter an amount in dollars"); return; }
+        record(raw);
         return;
       }
       const n = Number(monEl.value);
       if (!(n > 0)) { toast("Enter a number of months"); return; }
       const amt = monthsAmount();
       if (!(amt > 0)) { toast("This bucket has no monthly amount — use a button above"); return; }
-      record(amt, 1);
+      record(amt);
     };
     m.querySelector("#b-save").onclick = save;
     const typed = isUSD ? amtEl : monEl;
@@ -2298,11 +2500,32 @@ async function pushNow(quiet) {
   }
 }
 
-/* Auto-push, debounced well past the end of an interaction. A tracker you have
-   to remember to sync is a tracker that silently goes stale on the other
-   device, so this is on by default — but it is one commit per settled change,
-   not one per keystroke, and a conflict stops it rather than retrying. */
-let syncT;
+/* Auto-push, immediately. A tracker you have to remember to sync is a tracker
+   that silently goes stale on the other device, so this is on by default, and it
+   fires the moment an edit lands rather than a few seconds later. The delay it
+   replaces was not protecting against keystrokes — nothing in this file calls
+   markDirty per character, only on a settled action like saving a bucket or
+   recording a buy — it was protecting against overlapping requests, which is now
+   handled properly below instead of by hoping the gap is wide enough.
+
+   What still has to be true: never two PUTs to the same file in flight at once.
+   GitHub's Contents API takes the sha of the blob you think you are replacing, so
+   a second push sent before the first returns would carry the stale sha, come back
+   409, and show "Cloud has newer data — pull first" over a conflict with itself.
+   So a push that arrives during one is not dropped and not queued behind a timer:
+   it sets a flag, and the in-flight push re-runs once when it lands, by which time
+   pushNow has stored the new sha. One trailing run covers any number of edits,
+   because it sends the whole of S as it stands then, not a backlog of diffs. */
+let pushing = false, pushPending = false;
+async function runPush() {
+  if (pushing) { pushPending = true; return; }
+  pushing = true;
+  try { await pushNow(true); }
+  finally {
+    pushing = false;
+    if (pushPending) { pushPending = false; runPush(); }
+  }
+}
 function syncQueue() {
   const c = syncCfg();
   if (!c) return;
@@ -2310,8 +2533,11 @@ function syncQueue() {
      button keeps claiming "in sync" over an edit that nothing is going to send. */
   setSyncBadge();
   if (c.auto === false) return;
-  clearTimeout(syncT);
-  syncT = setTimeout(() => { flushSave(); pushNow(true); }, 4000);
+  /* Before the push, not inside it: pushNow serialises S, and the local copy must
+     already be on disk when it does, or a tab closed mid-request loses the edit
+     from both places at once. */
+  flushSave();
+  runPush();
 }
 
 /* Called with no state, the badge works the state out for itself — which is the
@@ -2320,9 +2546,18 @@ function syncQueue() {
    with auto-push off that is the one thing you needed telling.
 
    Unpushed local work is amber and reserved red for a conflict or a failed
-   request: with auto-push on the amber clears itself in seconds, so spending the
-   loudest colour on it would train you to ignore the loudest colour. */
+   request: with auto-push on the amber clears itself as soon as the request
+   returns, so spending the loudest colour on it would train you to ignore the
+   loudest colour. */
 function setSyncBadge(state, why) {
+  /* The refresh button appears and disappears with the config, and this function
+     is already the one thing that runs at boot, on every edit and after every
+     exchange — so it is where that gets noticed, rather than in a fourth place
+     that can fall out of step. Done before the early return below, because it
+     does not depend on the badge existing. */
+  const rf = document.getElementById("btn-refresh");
+  if (rf) rf.hidden = !syncCfg();
+
   const el = document.getElementById("btn-sync");
   if (!el) return;
   if (!state) state = !syncCfg() ? "off" : localChanged() ? "pend" : "ok";
@@ -2419,7 +2654,7 @@ function syncPanel() {
     <div class="field">
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer">
         <input type="checkbox" id="s-auto" ${c.auto === false ? "" : "checked"} style="width:auto">
-        Push automatically a few seconds after a change
+        Push automatically, as soon as anything changes
       </label>
       <div class="hint">Off means the other device only sees what you remembered to push.</div>
     </div>
@@ -2516,6 +2751,26 @@ document.getElementById("btn-add").onclick = () => editBucket();
 document.getElementById("btn-save").onclick = saveToFile;
 document.getElementById("btn-load").onclick = loadFromFile;
 document.getElementById("btn-sync").onclick = syncPanel;
+
+/* Refresh = pull, with the same guard the Sync panel's Pull button carries.
+   Reaching a destructive path in one tap instead of four is the point of this
+   button, so it cannot also be the path that loses work quietly: pulling replaces
+   this device's copy wholesale, and if there are edits the cloud has not seen yet
+   they go with it. Asking is the only honest option — there is no merge here, one
+   side wins. With auto-push on the question almost never comes up, because the
+   unsynced window is now only as wide as one request.
+
+   The spin is driven here rather than in setSyncBadge, which also has a "busy"
+   state: that one fires for pushes too, and a refresh icon spinning over an
+   upload says the wrong thing. */
+const refreshBtn = document.getElementById("btn-refresh");
+refreshBtn.onclick = async () => {
+  if (!syncCfg()) return;
+  if (localChanged() && !confirm("This device has changes the cloud has not seen. Refreshing replaces them with the cloud copy. Continue?")) return;
+  refreshBtn.classList.add("spin");
+  try { await pullNow(false); }
+  finally { refreshBtn.classList.remove("spin"); }
+};
 
 /* The kebab only does anything below 620px. Above it, .actions is a plain row and
    the .open class is inert — so rotating a phone into landscape needs no resize
