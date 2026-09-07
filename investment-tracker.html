@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Deployment Tracker</title>
+<title>MONEY Follows</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23e24bb4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M7 21l5-6 4 3 5-8' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   /* ============================================================
@@ -21,8 +21,8 @@
          be "opaque, never 0.9x alpha" and it was right about the specific thing
          it was aimed at: alpha you cannot SEE is pure cost. The grid is
          translucent now because you can see it — the wash was extended down the
-         viewport so a card genuinely shows something through itself, and Lite
-         takes the alpha back out in one click. What is still banned outright is
+         viewport so a card genuinely shows something through itself, and that is
+         judged worth its cost (measured below). What is still banned outright is
          alpha on anything that moves or on a sticky bar.
        · NO animated blur. The ambient wash is a static gradient painted
          once, not three animated blur(70px) blobs forcing every glass
@@ -39,13 +39,14 @@
          paying for a blur per frame. This used to say "zero RasterTasks across
          a full-page scroll" and that is no longer true — it was measured when
          the grid was opaque. Re-measured 2026-08-30 with the grid translucent:
-         a full-page scroll rasters 250 tiles / ~460ms in glass against 51 /
-         ~102ms in lite, and typing 12 chars 169 / ~298ms against 98 / ~100ms.
-         Both figures reproduced exactly with the skin order reversed, so it is
-         not a warm-up artifact. The ribbon is NOT what costs: lite keeps .aura
-         untouched and varies only the alpha on the surfaces, so that 5x is the
-         price of the translucency itself. It is worth paying by default only
-         because lite exists — which is why lite ships ON.
+         a full-page scroll rasters 250 tiles / ~460ms against 51 / ~102ms with
+         the surfaces opaque, and typing 12 chars 169 / ~298ms against 98 /
+         ~100ms. Both figures reproduced exactly with the two orders reversed,
+         so it is not a warm-up artifact. The ribbon is NOT what costs: only the
+         alpha on the surfaces varied between the runs, so that 5x is the price
+         of the translucency itself. There used to be a Lite toggle that bought
+         it back; it is gone, so this is the standing cost of the look, and it
+         is the first place to look if a phone ever feels heavy.
        · STATIC IS FREE. An elaborate background costs nothing once painted,
          while a cheap thing that moves costs every frame. Spend on texture,
          never on motion. This was first written for a streamed desktop, where
@@ -300,6 +301,20 @@
   }
 
   * { box-sizing: border-box; }
+  /* A classic desktop scrollbar takes its width out of the viewport, so a page
+     that fits with a category collapsed and overflows with it open loses and
+     regains ~10px — and .wrap, being centred, slides sideways every time. The
+     gutter is reserved whether or not the bar is there, which costs that width
+     permanently and stops the jump. Overlay scrollbars (every phone, and macOS
+     by default) reserve nothing here, which is where there was nothing to fix. */
+  html { scrollbar-gutter: stable; }
+  /* The UA's [hidden] rule is one class specific; several rules in this sheet set
+     display on two or three classes, so they quietly outrank it — which is why the
+     refresh button, hidden by the JS whenever sync is unconfigured, was still
+     painted and still doing nothing when clicked. !important is the fix that keeps
+     working when the next display rule is written. The three places that use the
+     attribute all remove it to reveal, so nothing here has to beat it. */
+  [hidden] { display: none !important; }
   body {
     margin: 0; min-height: 100vh;
     background: var(--page);
@@ -365,8 +380,8 @@
      wash under a card is painted instead of skipped. That is affordable here
      only because the wash is one FIXED layer that never moves or animates —
      the pixels are already rasterised, so this is fill-rate on an existing
-     texture, not new raster work. Measured below, and Lite still takes it
-     all back out for anyone who would rather have the frames.
+     texture, not new raster work. Measured in the header comment above, and
+     paid unconditionally now: there is no opaque skin to fall back to.
      ============================================================ */
   .glass {
     position: relative;
@@ -427,10 +442,17 @@
   /* ---------- header island ---------- */
   header.top {
     position: sticky; top: 10px; z-index: 25;
-    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    /* nowrap: the actions are three icons and a dropdown now, so there is no
+       width at which this bar needs a second row — and a sticky header that
+       grows one on a narrow window shifts everything under it. */
+    display: flex; align-items: center; gap: 14px; flex-wrap: nowrap;
     margin-bottom: 16px; padding: 12px 16px;
   }
-  .brand { display: flex; align-items: center; gap: 11px; }
+  /* min-width: 0 + ellipsis — a flex item will not shrink below its text's
+     min-content otherwise, and the title is the one part of this bar that can
+     afford to be cut off at 320px. */
+  .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .brand .mark {
     width: 32px; height: 32px; border-radius: 10px; flex: none; position: relative;
     background: linear-gradient(145deg, var(--accent), var(--accent-2));
@@ -443,15 +465,47 @@
     background: linear-gradient(rgba(255,255,255,.55), rgba(255,255,255,0));
   }
   .brand h1 { font-size: 16px; letter-spacing: -0.015em; }
-  /* position: relative — the mobile dropdown hangs off this, not off the header,
-     so it lines up with the kebab's right edge rather than the bar's */
+  /* position: relative — the dropdown hangs off this, not off the header, so it
+     lines up with the menu button's right edge rather than the bar's */
   .top-actions { margin-left: auto; display: flex; gap: 7px; align-items: center; position: relative; }
-  .actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+  /* ---------- the actions menu, at every width ----------
+     Save to file, Load file and the two skin switches were in the bar all the
+     time on a desktop. Two of them are a once-a-month backup and the other two
+     are settings you set once, so they were spending permanent space on rare
+     work — and the header had to grow a second layout to hold them on a phone.
+     One dropdown at every width removes both problems: the bar keeps only what
+     is used per session (add, refresh), and there is a single set of buttons
+     whose labels the JS rewrites (Sync ↑, Light, Full glass) rather than two. */
+  .actions {
+    position: absolute; top: calc(100% + 9px); right: 0; z-index: 30;
+    display: none; flex-direction: column; align-items: stretch; flex-wrap: nowrap;
+    min-width: 178px; padding: 7px; gap: 5px;
+    border: 1px solid transparent; border-radius: 14px;
+    /* OPAQUE, for the same reason the header is (see the note above header.top):
+       this floats over cards that scroll underneath it, and translucency here
+       means reading the menu's labels through the ledger's numbers */
+    background:
+      var(--sheen) padding-box,
+      linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
+      var(--rim) border-box;
+    box-shadow: inset 0 1px 0 var(--lip), var(--sh-lg);
+  }
+  .actions.open { display: flex; }
+  /* .btn.sm, not .btn: .btn.sm sets 5px/12.5px, matches on two classes and is
+     declared further down this sheet, so a two-class selector here loses to it and
+     the rows came out 31px instead of the 40 they are meant to be. This block used
+     to sit in a media query below that rule, where source order settled it. */
+  .actions .btn.sm {
+    width: 100%; text-align: left; border-radius: 10px;
+    padding: 10px 12px; font-size: 13.5px;   /* ~40px tall: a thumb target */
+  }
+  /* no lifts inside a menu — the row under the finger would slide out from it */
+  .actions .btn.sm:hover, .actions .btn.sm:active { transform: none; }
 
-  /* Square, so it reads as an icon rather than a very short label, and sized to
-     match the kebab it sits beside. The glyph is ↻ for the same reason the kebab
-     draws its dots in CSS: it is one character, it needs no SVG, and unlike ⋮ the
-     phone fonts agree about it. */
+  /* Square, so it reads as an icon rather than a very short label, and all three
+     the same size so the bar reads as a set. The glyph is ↻ for the same reason
+     the menu draws its dots in CSS: it is one character, it needs no SVG, and
+     unlike ⋮ the phone fonts agree about it. */
   /* All three classes, not just .iconbtn: .btn.sm sets 12.5px, matches on two
      classes, and is declared further down the sheet — so it won the size back and
      left the glyph small enough to read as a typo rather than an icon. Specificity
@@ -460,12 +514,19 @@
     width: 34px; height: 28px; padding: 0; font-size: 16px; line-height: 1;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  /* Above the phone breakpoint there is no kebab to sit before, and a lone icon in
-     front of "Add bucket" reads as an accident rather than a decision — so order
-     moves it to the end of the row. Below 740px the row becomes the dropdown and
-     source order applies again, which is a refresh immediately left of the kebab. */
-  #btn-refresh { order: 3; }
-  #top-menu { order: 2; }
+  /* Drawn, not typed. As the character "+" it sat visibly low in the button: flex
+     centring centres the line box, and the plus's ink is centred on the font's
+     math axis — above the middle of that box — so where the ink lands depends on
+     metrics this file does not control. Two bars crossing at 50%/50% are centred
+     by geometry instead, on every font and at every zoom. Same reasoning as the
+     menu's dots. The vertical arm is the horizontal one rotated about its own
+     centre, so the two cannot drift apart. */
+  #btn-add .ic-plus { position: relative; width: 13px; height: 13px; }
+  #btn-add .ic-plus::before, #btn-add .ic-plus::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    height: 2px; margin-top: -1px; border-radius: 2px; background: currentColor;
+  }
+  #btn-add .ic-plus::after { transform: rotate(90deg); }
   /* The spin lives on the inner span, not the button: .btn already owns transform
      for its hover lift, and an animation on the same property would fight it.
      Transform-only and only while a request is in flight — the two conditions
@@ -477,17 +538,21 @@
     .iconbtn.spin .ic-refresh { animation: none; }
   }
 
-  /* Hidden until the phone breakpoint. Dots are drawn with a box-shadow pair off
-     one 3.5px node — no glyph, because ⋮ is one of the characters phone fonts
-     disagree about most, and no SVG for three dots. */
-  .kebab { display: none; position: relative; width: 34px; height: 28px; padding: 0; }
+  /* Dots are drawn with a box-shadow pair off one 3.5px node — no glyph, because
+     ⋮ is one of the characters phone fonts disagree about most, and no SVG for
+     three dots. */
+  .kebab {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: relative; width: 34px; height: 28px; padding: 0;
+  }
   .kebab > span {
     width: 3.5px; height: 3.5px; border-radius: 50%; background: currentColor;
     box-shadow: 0 -6px 0 currentColor, 0 6px 0 currentColor;
   }
   /* Sync state has to survive being folded away: the amber "unpushed work" signal
      was the whole point of the badge, and inside a closed menu nobody sees it.
-     So the kebab carries the same two states as a corner pip. */
+     So the menu button carries the same two states as a corner pip — which now
+     matters at every width, not just on a phone. */
   .kebab.s-warn::after, .kebab.s-pend::after {
     content: ""; position: absolute; top: -2px; right: -2px;
     width: 8px; height: 8px; border-radius: 50%;
@@ -659,7 +724,6 @@
     color: color-mix(in oklab, currentColor 70%, transparent); }
   .fig-sep[data-for="figure"] { font-size: 23px; }
   .fig-sep[data-for="v"]      { font-size: 11px; }
-  .hero .sublabel { color: var(--text-secondary); font-size: 12.5px; margin-top: 4px; }
   .hero .label { color: var(--text-secondary); font-size: 11.5px; margin-bottom: 3px;
     text-transform: uppercase; letter-spacing: .07em; font-weight: 600; }
   .hero .side { display: flex; gap: 30px; flex-wrap: wrap; padding-bottom: 6px; }
@@ -688,6 +752,39 @@
     box-shadow: inset 0 1px 0 rgba(255,255,255,.38),
       0 4px 12px -4px color-mix(in oklab, var(--accent) 70%, transparent),
       0 0 16px -6px color-mix(in oklab, var(--accent-2) calc(var(--glow) * 100%), transparent);
+  }
+
+  /* ---------- dashboard groups ----------
+     A heading and a rule, not another glass panel: the cards inside already have
+     their own surface, and nesting one in another gives every card two frames.
+     The summary is the whole hit target — 34px of it — because on a phone the
+     triangle alone is not a thumb target. */
+  .group { margin-bottom: 20px; }
+  .group:last-child { margin-bottom: 0; }
+  .group > summary {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px;
+    cursor: pointer; padding: 5px 2px 11px;
+    border-bottom: 1px solid var(--gridline); margin-bottom: 14px;
+    list-style: none;                             /* Firefox's own marker */
+  }
+  .group > summary::-webkit-details-marker { display: none; }
+  /* Own chevron rather than the native marker, which cannot be rotated and sits
+     off the cap height. Transform only, so opening a section repaints the text
+     and nothing under it. */
+  .group > summary::before {
+    content: "›"; font-size: 17px; line-height: 1; color: var(--text-muted);
+    transition: transform .16s ease, color .15s ease;
+  }
+  .group[open] > summary::before { transform: rotate(90deg); }
+  .group > summary:hover::before { color: var(--text-secondary); }
+  .group .gnm { font-weight: 600; font-size: 14.5px; letter-spacing: -0.01em; }
+  .group .gct {
+    font-size: 11.5px; padding: 1px 7px; border-radius: 999px;
+    background: var(--ghost); border: 1px solid var(--border); color: var(--text-muted);
+  }
+  .group .gtot {
+    margin-left: auto; font-size: 12.5px; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
   }
 
   /* ---------- cards ---------- */
@@ -778,6 +875,11 @@
   .kv div b { font-weight: 600; }
 
   .card-actions { display: flex; gap: 7px; margin-top: auto; padding-top: 5px; flex-wrap: wrap; }
+  /* height: auto so flex's default stretch runs: the header's icon buttons are a
+     fixed 28px, which beside "Record buy" left a 4px step along the bottom of
+     every card. The wider box is the tap target a phone wants anyway. */
+  .card-actions .btn.sm.iconbtn { width: 38px; height: auto; align-self: stretch; }
+  .card-actions .btn.sm.iconbtn svg { display: block; }
 
   /* ---------- tables ---------- */
   table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -865,6 +967,46 @@
     box-shadow: inset 0 1px 2px var(--inset),
                 0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
   }
+  /* A two-state field shown as two states. As a <select> it hid the alternative
+     behind a tap, looked identical to the three other selects on this form, and
+     on a phone opened a half-screen native picker to choose between two things —
+     for the one field that decides what every amount below it means. The selected
+     pill borrows nav.tabs' language one size down, so it reads as the same kind of
+     control rather than a new one. Colour is not the only signal: aria-pressed
+     carries it for a screen reader, and the ₹/$ mark is in the label either way. */
+  /* nowrap + nowrap: the two labels stay on one line each and the pair stays on
+     one line together, so this control is exactly as tall as the select beside it
+     (40px) and cannot grow a second row when its column is narrow. It was doing
+     precisely that at 375px before the phone rules below stopped pairing fields —
+     but the guarantee belongs on the control, not on one breakpoint. */
+  .seg {
+    display: inline-flex; flex-wrap: nowrap; gap: 3px; padding: 3px;
+    border-radius: 999px;
+    background: var(--ghost); border: 1px solid var(--border);
+    box-shadow: inset 0 1px 2px var(--inset);
+  }
+  .seg button {
+    background: none; border: none; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 13px; padding: 7px 15px;
+    white-space: nowrap; color: var(--text-secondary);
+    /* colour and background only — a pill that also moved would shift the row */
+    transition: color .15s ease, background .16s ease;
+  }
+  .seg button:hover { color: var(--text-primary); }
+  .seg button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
+  }
+  .seg button[aria-pressed="true"] {
+    color: #fff; font-weight: 600;
+    background: linear-gradient(146deg,
+      color-mix(in oklab, var(--accent-deep) 74%, var(--accent)),
+      var(--accent-deep) 48%,
+      color-mix(in oklab, var(--accent-deep) 86%, #000));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.38),
+      0 4px 12px -4px color-mix(in oklab, var(--accent) 70%, transparent);
+  }
+
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
   .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 11px; }
 
@@ -905,9 +1047,6 @@
 
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
   .modal-actions .left { margin-right: auto; }
-  .memrow { display: grid; grid-template-columns: 1fr 110px 62px 26px; gap: 7px; margin-bottom: 7px; align-items: center; }
-  .memrow .x { background: none; border: none; box-shadow: none; color: var(--text-muted); cursor: pointer; font-size: 15px; }
-  .memrow .x:hover { color: var(--danger-text); transform: none; }
   .allocrow { display: grid; grid-template-columns: 130px 1fr 30px; gap: 7px; margin-bottom: 7px; align-items: center; }
 
   .plan-item {
@@ -944,73 +1083,17 @@
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); background-clip: content-box; }
   ::-webkit-scrollbar-track { background: transparent; }
 
-  /* ============================================================
-     Lite skin — for a streamed desktop (RDP / Citrix / VDI), which is how
-     this actually gets used.
-
-     A remote session ships the screen as video, so the cost of a frame is the
-     number of pixels that changed and how well they compress — not GPU work.
-     Two things dominate, and neither shows up in a local profile: large soft
-     gradients, which an inter-frame codec cannot encode cleanly and so keeps
-     re-sending, and anything that MOVES a big region, which invalidates it.
-
-     Note what lite does NOT touch any more: the ribbon stays. It is one
-     static texture on a fixed layer, so it is painted once and then costs
-     nothing — flattening it was defensive rather than measured, and it is the
-     whole look. What lite removes is everything that MOVES or re-blends: the
-     wide shadow haloes that travel with each card on every scroll frame, the
-     hover lifts, the per-card sheen, the coloured glows, and — since the grid
-     went translucent — the alpha on EVERY glass surface, which is now the
-     biggest single thing in here. Opaque surfaces can be occlusion-culled, so
-     the wash behind the content column stops being blended per frame.
-     ============================================================ */
-  :root[data-lite] {
-    /* tight shadows: a 48px blur halo is a big soft gradient that moves with
-       its card on every scroll frame, which is the worst thing you can hand
-       a video encoder */
-    --sh-sm: 0 1px 1px rgba(64,16,78,0.07);
-    --sh-md: 0 1px 2px rgba(64,16,78,0.10);
-    --sh-lg: 0 2px 6px rgba(64,16,78,0.14);
-    --sheen: none;
-    --glow: 0;              /* zeroes every coloured bloom via calc() */
-  }
-  :root[data-lite][data-theme="dark"] {
-    --sh-sm: 0 1px 1px rgba(0,0,0,0.5);
-    --sh-md: 0 1px 2px rgba(0,0,0,0.6);
-    --sh-lg: 0 2px 6px rgba(0,0,0,0.7);
-  }
-  /* Every glass surface goes opaque. This is now the main thing lite does: the
-     grid is translucent by default, so under lite a card no longer forces the
-     wash beneath it to be re-blended, and the whole content column can be
-     occlusion-culled again. Same colours the frost blends to over the wash, so
-     the skin reads almost the same — you lose the tint each card picks up from
-     what it is sitting over, which is exactly the thing you are trading away.
-     Must come BEFORE the hero/modal rule below: equal specificity, later wins. */
-  [data-lite] .glass {
-    background:
-      var(--sheen) padding-box,
-      linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
-      var(--rim) border-box;
-  }
-  [data-lite] .hero, [data-lite] .modal {
-    background:
-      radial-gradient(95% 150% at 90% -25%, var(--refract-2), transparent 60%) padding-box,
-      radial-gradient(80% 130% at 4% 125%, var(--refract-1), transparent 58%) padding-box,
-      linear-gradient(148deg, var(--surface-1), var(--surface-1b)) padding-box,
-      var(--rim) border-box;
-  }
-  [data-lite] .lens { box-shadow: inset 0 1px 0 var(--lip), inset 0 -1px 0 var(--lip-low), var(--sh-md); }
-  [data-lite] .btn.primary {
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.40), inset 0 -1px 0 rgba(0,0,0,.14),
-                0 1px 2px rgba(64,16,78,.18);
-  }
-  [data-lite] .btn.primary:hover {
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.48), 0 1px 3px rgba(64,16,78,.22);
-  }
-  /* no lifts, no fades: moving or cross-fading a 370px card re-encodes all of it */
-  [data-lite] .card, [data-lite] .btn { transition: none; }
-  [data-lite] .card:hover, [data-lite] .btn:hover, [data-lite] .btn:active { transform: none; }
-  [data-lite] .modal { animation: none; }
+  /* The Lite skin that used to live here is gone, along with its toggle: one skin
+     now, the full glass, on every device. It existed for a streamed desktop (RDP /
+     Citrix / VDI), where a frame costs whatever changed and how well it compresses,
+     and it took away the things that dominate there — the wide shadow haloes that
+     travel with each card on every scroll frame, the hover lifts, the per-card
+     sheen, the coloured glows, and the alpha on every glass surface (opaque ones
+     can be occlusion-culled, so the wash behind the column stops being re-blended).
+     Removing it is deliberately a choice for the look over that measurement. What
+     stays cheap regardless is what the rest of this sheet already holds itself to:
+     the ribbon is one static texture painted once, no `filter` anywhere, the sticky
+     header and the dropdown are opaque, and every transition is transform-only. */
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1018,44 +1101,10 @@
     }
   }
 
-  /* 740px, not the 620px phone breakpoint below, and measured rather than picked:
-     the six buttons are ~442px of row and the brand ~193px, so the bar runs out of
-     one-row space at ~730px viewport. Anywhere under that it wrapped to a second
-     row — the thing this menu exists to stop — so the kebab has to arrive first.
-     It is the actions row's own width that decides this, not the phone layout. */
-  @media (max-width: 740px) {
-    header.top { flex-wrap: nowrap; gap: 12px; }
-    .brand { min-width: 0; }
-    .brand h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .kebab { display: inline-flex; align-items: center; justify-content: center; }
-    /* Back to source order, which puts the refresh immediately left of the kebab.
-       The order: 3 it drops here is a desktop-only tidy-up — see that rule. */
-    #btn-refresh { order: 0; }
-    .actions {
-      /* the six buttons stop being a wrapping row and become the dropdown, which
-         is why the header is back to a single row on a phone */
-      position: absolute; top: calc(100% + 9px); right: 0; z-index: 30;
-      display: none; flex-direction: column; align-items: stretch; flex-wrap: nowrap;
-      min-width: 178px; padding: 7px; gap: 5px;
-      border: 1px solid transparent; border-radius: 14px;
-      /* OPAQUE, for the same reason the header is (see the note above header.top):
-         this floats over cards that scroll underneath it, and translucency here
-         means reading the menu's labels through the ledger's numbers */
-      background:
-        var(--sheen) padding-box,
-        linear-gradient(163deg, var(--surface-1), var(--surface-1b)) padding-box,
-        var(--rim) border-box;
-      box-shadow: inset 0 1px 0 var(--lip), var(--sh-lg);
-    }
-    .actions.open { display: flex; }
-    .actions .btn {
-      width: 100%; text-align: left; border-radius: 10px;
-      padding: 10px 12px; font-size: 13.5px;   /* ~40px tall: a thumb target */
-    }
-    /* no lifts inside a menu — the row under the finger would slide out from it */
-    .actions .btn:hover, .actions .btn:active { transform: none; }
-  }
+  /* The 740px branch that used to live here is gone with the two-layout header:
+     it existed because six labelled buttons were ~442px of row against a ~193px
+     brand, so the bar ran out of one-row space at ~730px. Three 34px icons and
+     a dropdown fit at 320px, so there is nothing left for a breakpoint to fix. */
 
   @media (max-width: 620px) {
     .wrap { padding: 10px 13px 80px; }
@@ -1070,6 +1119,34 @@
     nav.tabs button { flex: 1; padding: 8px 6px; }
     .cards { grid-template-columns: 1fr; }
     .row3 { grid-template-columns: 1fr; }
+
+    /* ---------- the bucket form stops pairing fields ----------
+       A month input carries the platform's own picker chrome and will not go
+       below about 165px of min-content. `1fr` is minmax(AUTO, 1fr), so such a
+       column does not shrink to its share — it pushes past it: measured at 375px,
+       "Tracking starts" took 169 of the 283px available and left the "Opening
+       backlog" amount beside it 113, which is where the two collided. The same
+       squeeze wrapped the ₹/$ toggle onto two lines next to Type.
+       No column width fixes this, because the floor is set by the platform's date
+       control rather than by anything here. One field per row does. */
+    .row2 { grid-template-columns: 1fr; }
+
+    /* 16px exactly, and it is not a taste decision: iOS Safari and Android
+       Chrome zoom the page in when a focused field's text is under 16px, which is
+       the "it zooms in a little" every tap into one of these was causing at the
+       inherited 14px. Nothing else on the page changes size — only the controls
+       you type into, which are full-width single-column here and had the room. */
+    input, select, textarea { font-size: 16px; }
+
+    /* Same input and same reason in the effective-dated amount rows, which have a
+       fixed 130px month column of their own. The remove button stays on the
+       month's line so it is never ambiguous which row it removes; the amount
+       takes the full width underneath. Bigger margin because each row is now two
+       lines and 7px of it would read as the gap inside one. */
+    .allocrow { grid-template-columns: 1fr 30px; margin-bottom: 13px; }
+    .allocrow > [data-af]   { grid-area: 1 / 1; }
+    .allocrow > [data-adel] { grid-area: 1 / 2; }
+    .allocrow > [data-aa]   { grid-area: 2 / 1 / 3 / 3; }
 
     /* The panel heading is a flex row of a bare text node (the bucket name) plus
        the muted totals span. At this width the anonymous item for the name gets
@@ -1125,38 +1202,41 @@
   <header class="top glass">
     <div class="brand">
       <span class="mark" aria-hidden="true"></span>
-      <h1>Deployment Tracker</h1>
+      <h1>MONEY Follows</h1>
     </div>
     <div class="top-actions">
       <span class="dot-unsaved" title="Unsaved changes"></span>
-      <!-- Refresh is the one action that stays out in the bar at every width.
-           Folding it in would cost a tap to open the kebab and a tap to close
-           whatever it left open, and its whole justification is being one tap:
-           the alternative is reloading the page. Hidden until sync is configured
-           — with no cloud behind it there is nothing to refresh from, and a
-           control that does nothing is worse than an absent one. -->
-      <button class="btn sm iconbtn" id="btn-refresh" hidden
+      <!-- Add is in the header rather than in a view so it is reachable from every
+           tab, and an icon rather than a label because it is the one action whose
+           glyph needs no explaining. -->
+      <button class="btn sm iconbtn primary" id="btn-add"
+              aria-label="Add bucket" title="Add bucket"><span class="ic-plus" aria-hidden="true"></span></button>
+      <!-- Refresh is the one action that stays out in the bar at every width, and
+           always: folding it in would cost a tap to open the menu and a tap to
+           close whatever it left open, and its whole justification is being one
+           tap — the alternative is reloading the page. It used to hide itself
+           until sync was configured, on the grounds that a control which does
+           nothing is worse than an absent one. Wrong trade twice over: a control
+           that comes and goes is harder to trust than one that is always there,
+           and the fix for "does nothing" is to give it something to do — with no
+           cloud set up it opens the sync setup, which is what you would have
+           wanted from it anyway. -->
+      <button class="btn sm iconbtn" id="btn-refresh"
               aria-label="Refresh from GitHub" title="Refresh from GitHub">
         <span class="ic-refresh" aria-hidden="true">↻</span>
       </button>
-      <!-- Phone-first: below 740px .actions stops being a row in the header and
-           becomes the kebab's dropdown. The SAME six buttons move — they are not
-           duplicated into a second menu — so every label the JS rewrites
-           (Sync ↑, Light, Full glass) stays correct in both layouts with no
-           state to keep in step. -->
-      <button class="btn sm kebab" id="btn-menu" aria-label="Actions"
-              aria-haspopup="true" aria-expanded="false" aria-controls="top-menu">
+      <!-- Everything you set once or reach for rarely lives behind this at every
+           width: the sync setup and the light/dark switch. -->
+      <button class="btn sm kebab" id="btn-menu" aria-label="Settings"
+              title="Settings" aria-haspopup="true" aria-expanded="false" aria-controls="top-menu">
         <span aria-hidden="true"></span>
       </button>
+      <!-- No role="menu": that contract wants role="menuitem" children and arrow-key
+           navigation, and half-implementing it reads worse to a screen reader than
+           two plain buttons that already announce themselves. -->
       <div class="actions" id="top-menu">
-        <!-- in the header, not a view, so adding a bucket is reachable from every tab -->
-        <button class="btn sm primary" id="btn-add">Add bucket</button>
-        <button class="btn sm" id="btn-save">Save to file</button>
-        <button class="btn sm" id="btn-load">Load file</button>
         <button class="btn sm" id="btn-sync" title="Sync with a private GitHub repo">Sync</button>
         <button class="btn sm" id="btn-theme" title="Toggle light/dark">Dark</button>
-        <button class="btn sm" id="btn-lite"
-          title="Lite drops the ambient wash, the wide shadows and the hover lifts — the things a streamed desktop pays most for">Lite</button>
       </div>
     </div>
   </header>
@@ -1381,11 +1461,6 @@ function dLabel(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return d + " " + MON[m - 1] + " " + y;
 }
-function daysAgo(iso) {
-  if (!iso) return null;
-  const a = new Date(iso + "T00:00:00"), b = new Date(todayISO() + "T00:00:00");
-  return Math.round((b - a) / 86400000);
-}
 const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -1503,9 +1578,6 @@ function computeLedger(b) {
   const oldest = open.length ? open.reduce((a, l) => (mIdx(l.month) < mIdx(a.month) ? l : a)) : null;
   const notStarted = s > e;
   const monthly = notStarted ? allocFor(b, start) : allocFor(b, thisMonth());
-  const last = px.length ? px[px.length - 1] : null;
-  const lastSkip = S.skips.filter(k => k.bucketId === b.id).sort((a, c) => a.date.localeCompare(c.date)).pop();
-  const reviewed = [last && last.date, lastSkip && lastSkip.date].filter(Boolean).sort().pop() || null;
 
   return {
     /* Every figure below is in this currency. Carried on the ledger rather than
@@ -1531,8 +1603,7 @@ function computeLedger(b) {
        different one, and a part-paid month would divide into a fraction. */
     openMonths: open.length,
     ageMonths: oldest ? Math.max(0, mIdx(thisMonth()) - mIdx(oldest.month)) : 0,
-    lapses, lapsedTotal, credited, deployed, rows,
-    lastPurchase: last, lastSkip, reviewed, purchaseCount: px.length
+    lapses, lapsedTotal, credited, deployed, rows
   };
 }
 
@@ -1560,15 +1631,44 @@ function statusOf(L) {
 
 const RANK = { cap: 0, act: 1, due: 2, clear: 3, idle: 4 };
 
+/* Three categories, in the order the dashboard stacks them. They are also the
+   only three: "Group of holdings" is gone, and with it the editable member list
+   that was its whole reason for existing — a fourth category that only enabled a
+   sub-form is not a category.
+
+   Legacy values are mapped, never rejected, because a bucket whose kind does not
+   resolve would vanish from a grouped dashboard rather than sit in the wrong
+   group. The old `equity` ("Single stock") and `group` ("Group of holdings") both
+   became a stock row, and which one is decided by the currency: a dollar holding
+   is not an Indian stock, and half the dollar holdings in a real file are tagged
+   `mf` anyway, because the old three categories had nowhere better to put an ETF.
+   Anything unrecognised falls to mf rather than to a fourth bin, so every bucket
+   is always in exactly one group.
+
+   Stored `members` are left on the record untouched — unread, not deleted. */
+/* The one icon in this file that is drawn rather than typed. ✎ and ✏ are exactly
+   the characters that come out as tofu on one phone and as a full-colour emoji on
+   the next, and a pencil that renders as a box is worse than the word "Edit" it
+   replaced. currentColor, so it follows the button through both themes and the
+   hover state, and stroke-only so it costs no fill at 16 cards. */
+const ICON_PENCIL = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none"
+  stroke="currentColor" stroke-width="1.9" stroke-linecap="round"
+  stroke-linejoin="round" aria-hidden="true" focusable="false"
+  ><path d="M16.8 3.2a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5 13.3-13.3z"/></svg>`;
+
+const KINDS = { mf: "Mutual Funds", in_stock: "Indian Stocks", us_stock: "US Stocks" };
+const KIND_ORDER = ["mf", "in_stock", "us_stock"];
+const kindOf = b => {
+  if (KINDS[b.kind]) return b.kind;
+  if (b.kind === "equity" || b.kind === "group") return ccyOf(b) === "USD" ? "us_stock" : "in_stock";
+  return "mf";
+};
+
 /** What a bucket tracks, in words. Free text you type, not a linked feed —
     there is no price fetching in this app, so nothing has to match a
     provider's spelling. Buckets loaded from an older file carry the linked
     scheme name into it, so existing cards keep their subtitles. */
 function tracksLabel(b) {
-  if (b.kind === "group") {
-    const n = (b.members || []).length;
-    return n + " holding" + (n === 1 ? "" : "s");
-  }
   return (b.tracks || "").trim() || "no description";
 }
 
@@ -1605,8 +1705,6 @@ function renderHero() {
     <div>
       <div class="label">Waiting to be invested</div>
       <div class="moneypair">${pair("pending", "figure")}</div>
-      <div class="sublabel">Budget credited so far, minus what you have actually bought.${
-        live.length > 1 ? " Rupee and dollar buckets are counted separately — nothing is converted." : ""}</div>
     </div>
     <div class="side">
       <div><div class="label">Budget / month</div>
@@ -1623,8 +1721,8 @@ function renderDash() {
   if (!S.buckets.length) {
     host.innerHTML = `<div class="panel glass empty">
       <h2>No buckets yet</h2>
-      <p>A bucket is one thing you fund every month — an index fund, an ETF, or a group
-         like your US stocks. Nothing is pre-filled; build the plan the way you actually run it.</p>
+      <p>A bucket is one thing you fund every month — a fund, an ETF, or a stock.
+         Nothing is pre-filled; build the plan the way you actually run it.</p>
       <button class="btn primary" onclick="editBucket()">Add your first bucket</button>
     </div>`;
     return;
@@ -1636,30 +1734,31 @@ function renderDash() {
     return d || (y.L.pending - x.L.pending);
   });
 
-  host.innerHTML = `<div class="cards">` + rows.map(({ b, L }) => {
+  const card = ({ b, L }) => {
     const st = statusOf(L);
     const pct = L.capAmount ? Math.min(100, L.pending / L.capAmount * 100) : 0;
-    /* Spelled out rather than "3mo old", because it sits inches from a badge
-       reading "4 months behind" and the terse form invites reading the age as
-       another count of months. See the two fields in computeLedger. */
-    const since = L.oldestMonth
-      ? `oldest budget from ${mLabel(L.oldestMonth)}${
-          L.ageMonths ? " · waiting " + L.ageMonths + " month" + (L.ageMonths === 1 ? "" : "s") : " (current)"}`
-      : "nothing pending";
-    const rev = daysAgo(L.reviewed);
 
+    /* Four lines of prose came off this card: the fund's full name under the
+       amount, the "oldest budget from July · waiting 3 months" trail, and the
+       Last bought / Reviewed pair. None of them were wrong — they were just
+       being read every time the dashboard opened to answer a question that is
+       asked once a quarter. What stays is what a glance is actually for: which
+       bucket, how much a month, how much is owed, how close to lapsing, and the
+       badge that already says "3 months behind" in words. The age is still on
+       the meter (the fill is pending against the cap) and the exact months are
+       one tap away on the buy sheet, which lists them individually. */
     return `<article class="card glass">
       <div class="card-head">
         <div>
           <div class="nm">${esc(b.name)}</div>
-          <div class="sub">${money(L.monthly, L.ccy)}/month · ${esc(tracksLabel(b))}</div>
+          <div class="sub">${money(L.monthly, L.ccy)}/month</div>
         </div>
         <span class="status st-${st.key}" style="--st:var(${st.st})"><span class="ic">${st.ic}</span>${st.label}</span>
       </div>
 
       <div class="pending-row">
         <span class="amt">${moneyBig(L.pending, L.ccy)}</span>
-        <span class="since">pending · ${since}</span>
+        <span class="since">pending</span>
       </div>
 
       <div class="meter" style="--st:var(${st.st})">
@@ -1667,22 +1766,67 @@ function renderDash() {
         <div class="ticks"><span>${money(0, L.ccy)}</span><span>${L.cap}-month cap · ${money(L.capAmount, L.ccy)}</span></div>
       </div>
 
-      <div class="kv">
-        <div><span>Last bought</span> <b>${L.lastPurchase ? dLabel(L.lastPurchase.date) : "never"}</b>${
-          L.lastPurchase ? ` <span>(${daysAgo(L.lastPurchase.date)}d)</span>` : ""}</div>
-        <div><span>Reviewed</span> <b>${rev == null ? "never" : rev + "d ago"}</b></div>
+      ${/* Both rows are exceptions — money that expired unbought, or bought
+            ahead of schedule — so the block only exists when there is one. An
+            empty .kv would still take its 12px of the card's gap. */
+        L.lapsedTotal > 0 || L.advance > 0 ? `<div class="kv">
         ${L.lapsedTotal > 0 ? `<div><span>Lapsed</span> <b style="color:var(--danger-text)">${money(L.lapsedTotal, L.ccy)}</b></div>` : ""}
         ${L.advance > 0 ? `<div><span>Bought ahead</span> <b>${money(L.advance, L.ccy)}</b></div>` : ""}
-      </div>
+      </div>` : ""}
 
       <div class="card-actions">
         <button class="btn sm primary" onclick="buyForm('${b.id}')">Record buy</button>
-        <button class="btn sm" onclick="skipForm('${b.id}')">Log a wait</button>
-        <button class="btn sm" onclick="editBucket('${b.id}')">Edit</button>
+        <button class="btn sm iconbtn" onclick="editBucket('${b.id}')"
+                aria-label="Edit ${esc(b.name)}" title="Edit">${ICON_PENCIL}</button>
       </div>
     </article>`;
-  }).join("") + `</div>`;
+  };
+
+  /* Grouped by category, always in KIND_ORDER — funds, then Indian stocks, then
+     US stocks — rather than by whatever is most urgent, because the order of the
+     sections is the one thing on this screen that should never move. Inside a
+     section the existing sort still applies, so the bucket that needs attention
+     is the first card under its own heading. Empty sections are omitted: an
+     "Indian Stocks (0)" header is a header about nothing.
+
+     <details> rather than a click handler on a div: the disclosure triangle, the
+     keyboard behaviour, Enter and Space, and find-in-page opening a closed
+     section all come free and none of it is code here. */
+  host.innerHTML = KIND_ORDER.map(k => {
+    const inK = rows.filter(r => kindOf(r.b) === k);
+    if (!inK.length) return "";
+    /* Collapsed, a section still has to be worth reading, so the summary carries
+       what the cards under it would have said: how many, and how much is waiting.
+       Per currency and never summed — same reason as the hero. */
+    const held = ["INR", "USD"].filter(c => inK.some(r => r.L.ccy === c));
+    const tot = held.map(c =>
+      money(inK.filter(r => r.L.ccy === c).reduce((t, r) => t + r.L.pending, 0), c)).join(" · ");
+    return `<details class="group" data-gk="${k}" ${groupOpen(k) ? "open" : ""}>
+      <summary>
+        <span class="gnm">${KINDS[k]}</span>
+        <span class="gct">${inK.length}</span>
+        <span class="gtot">${tot} pending</span>
+      </summary>
+      <div class="cards">${inK.map(card).join("")}</div>
+    </details>`;
+  }).join("");
+
+  /* Every edit re-renders this whole section, so a section you collapsed would
+     spring open the moment you recorded a buy. The open set therefore has to
+     outlive the markup — and it is per-device view state, not part of the plan,
+     so it lives in its own localStorage key rather than in S, where sync would
+     carry your phone's collapsed sections to your laptop. */
+  host.querySelectorAll("details.group").forEach(d => d.addEventListener("toggle", () => {
+    const closed = new Set(lsGet(DASH_GROUPS, []) || []);
+    if (d.open) closed.delete(d.dataset.gk); else closed.add(d.dataset.gk);
+    try { localStorage.setItem(DASH_GROUPS, JSON.stringify([...closed])); } catch (e) {}
+  }));
 }
+
+/* Stored as the CLOSED set, so a category added later — or a fresh device —
+   defaults to open rather than to invisible. */
+const DASH_GROUPS = "deployment-tracker-groups";
+const groupOpen = k => !(lsGet(DASH_GROUPS, []) || []).includes(k);
 
 /* ============================================================
    7. Plan view
@@ -1711,13 +1855,12 @@ function renderPlan() {
         const allocs = (b.allocations || []).slice().sort((x, y) => x.from.localeCompare(y.from));
         return `<div class="plan-item">
           <div>
-            <div class="nm">${esc(b.name)} <span class="chip">${b.kind}</span>${
+            <div class="nm">${esc(b.name)} <span class="chip">${KINDS[kindOf(b)]}</span>${
               ccyOf(b) === "USD" ? ' <span class="chip">USD</span>' : ""}</div>
             <div class="meta">
               ${allocs.map(a => `${money(a.amount, L.ccy)}/mo from ${mLabel(a.from)}`).join(" → ")}
               · started ${mLabel(b.start)}
-              ${b.kind === "group" ? "" : " · " + esc(tracksLabel(b))}
-              ${(b.members || []).length ? " · " + b.members.map(m => esc(m.name)).join(", ") : ""}
+              · ${esc(tracksLabel(b))}
             </div>
           </div>
           <div style="display:flex;gap:6px">
@@ -1847,8 +1990,15 @@ function openModal(html, onMount) {
   modal.innerHTML = html;
   backdrop.classList.add("open");
   if (onMount) onMount(modal);
-  const f = modal.querySelector("input,select,textarea");
-  if (f) f.focus();
+  /* No autofocus, on any device. It used to be gated on
+     (hover: hover) and (pointer: fine) — meant to be true only on a desktop — but
+     that pair is not the reliable read of "there is a real keyboard here" it looks
+     like: a phone with a stylus, a paired mouse or a desktop-mode browser answers
+     yes to both, and the cost of being wrong is the whole reason the gate existed.
+     Focusing a field on open summons the on-screen keyboard AND zooms the page in,
+     so "Record buy" opened to read what is pending instead hides it. Every form
+     here is short enough that the first tap lands on the field you want anyway.
+     Focus after a failed save still happens — that one was asked for. */
 }
 function closeModal() { backdrop.classList.remove("open"); modal.innerHTML = ""; }
 backdrop.addEventListener("mousedown", e => { if (e.target === backdrop) closeModal(); });
@@ -1865,11 +2015,13 @@ function editBucket(id) {
     : JSON.parse(JSON.stringify(S.buckets.find(x => x.id === id)));
 
   /* step and placeholder follow the currency, because 500 is a sensible nudge on
-     a rupee budget and an absurd one on a dollar budget. Read from the select
-     rather than from `b`, so switching "Buys in" redraws these correctly. */
+     a rupee budget and an absurd one on a dollar budget. Read from the field
+     rather than from `b`, so switching "Buys in" redraws these correctly — and
+     the null guard is load-bearing, since allocRows runs while building the
+     markup that contains the field. */
   const curCcy = () => {
-    const sel = document.getElementById("f-ccy");
-    return (sel ? sel.value : b.currency) === "USD" ? "USD" : "INR";
+    const el = document.getElementById("f-ccy");
+    return (el ? el.value : b.currency) === "USD" ? "USD" : "INR";
   };
   const allocRows = a => {
     const isUSD = curCcy() === "USD";
@@ -1880,61 +2032,47 @@ function editBucket(id) {
       <button class="x btn sm" data-adel title="Remove">×</button></div>`).join("");
   };
 
-  const memRows = m => m.map((x, i) => `<div class="memrow" data-mi="${i}">
-      <input value="${esc(x.name)}" data-mn placeholder="Holding name">
-      <input value="${esc(x.ticker || "")}" data-mt placeholder="Ticker">
-      <input type="number" min="0" step="1" value="${x.weight == null ? "" : x.weight}" data-mw placeholder="Wt">
-      <button class="x" data-mdel title="Remove">×</button></div>`).join("");
-
   openModal(`
     <h2>${isNew ? "Add bucket" : "Edit bucket"}</h2>
 
     <div class="field">
       <label for="f-name">Name</label>
-      <input id="f-name" value="${esc(b.name)}" placeholder="e.g. Nifty 50 Index, GoldBees, US Stocks">
+      <input id="f-name" value="${esc(b.name)}" placeholder="e.g. Nifty 50 Index">
     </div>
 
     <div class="row2">
       <div class="field">
         <label for="f-kind">Type</label>
-        <select id="f-kind">
-          <option value="mf" ${b.kind === "mf" ? "selected" : ""}>Fund or ETF</option>
-          <option value="equity" ${b.kind === "equity" ? "selected" : ""}>Single stock</option>
-          <option value="group" ${b.kind === "group" ? "selected" : ""}>Group of holdings</option>
-        </select>
+        <select id="f-kind">${KIND_ORDER.map(k =>
+          `<option value="${k}" ${kindOf(b) === k ? "selected" : ""}>${KINDS[k]}</option>`).join("")}</select>
       </div>
       <div class="field">
-        <label for="f-ccy">Buys in</label>
-        <select id="f-ccy">
-          <option value="INR" ${ccyOf(b) === "INR" ? "selected" : ""}>INR — ₹</option>
-          <option value="USD" ${ccyOf(b) === "USD" ? "selected" : ""}>USD — $</option>
-        </select>
-        <div class="hint" id="ccy-hint"></div>
+        <label>Buys in</label>
+        <!-- The value stays on a hidden input rather than being read off whichever
+             button looks pressed: three places want it — curCcy for the step and
+             placeholders, syncCcy for the unit labels, save for the record — and
+             something with a .value is the shape all three already expected. The
+             buttons only write to it. -->
+        <input type="hidden" id="f-ccy" value="${ccyOf(b)}">
+        <div class="seg" id="ccy-seg" role="group" aria-label="Buys in">
+          <button type="button" data-ccy="INR">₹ INR</button>
+          <button type="button" data-ccy="USD">$ USD</button>
+        </div>
       </div>
-    </div>
-
-    <div class="field" id="wrap-tracks" ${b.kind === "group" ? "hidden" : ""}>
-      <label for="f-tracks">What it tracks <span class="muted">(optional)</span></label>
-      <input id="f-tracks" value="${esc(b.tracks || "")}"
-        placeholder="e.g. Motilal Oswal Nifty Midcap 150 Index Fund, or TATAMOTORS">
-      <div class="hint">Free text, shown under the bucket name on its card — the full fund name, a
-        ticker, whatever you would recognise. It is a label and nothing else: no price is looked up,
-        so it does not have to match anyone's spelling.</div>
-    </div>
-
-    <div class="field" id="wrap-mem" ${b.kind === "group" ? "" : "hidden"}>
-      <label>Holdings in this group</label>
-      <div id="mem-list">${memRows(b.members || [])}</div>
-      <button class="btn sm" id="mem-add" type="button">Add holding</button>
-      <div class="hint">Weights are for your own reference when splitting a buy.</div>
     </div>
 
     <div class="field">
-      <label>Monthly amount <span class="muted" data-unit></span>, effective-dated</label>
+      <label for="f-tracks">What it tracks <span class="muted">(optional)</span></label>
+      <input id="f-tracks" value="${esc(b.tracks || "")}"
+        placeholder="e.g. UTI Nifty 50 Index Fund">
+      <div class="hint">A label only — no prices are looked up.</div>
+    </div>
+
+    <div class="field">
+      <label>Monthly amount <span class="muted" data-unit></span></label>
       <div id="alloc-list">${allocRows(b.allocations)}</div>
       <button class="btn sm" id="alloc-add" type="button">Add a change</button>
-      <div class="hint">Add a row when you raise the amount — past months keep their old
-        figure, so history is never rewritten.</div>
+      <div class="hint">A new row raises the amount from that month on. Past months keep theirs.</div>
     </div>
 
     <div class="row2">
@@ -1945,8 +2083,7 @@ function editBucket(id) {
       <div class="field">
         <label for="f-open">Opening backlog <span class="muted" data-unit></span></label>
         <input id="f-open" type="number" min="0" step="500" value="${b.openingPending || 0}">
-        <div class="hint">Already-pending amount as of that month. Lets you start clean without
-          re-entering months of history.</div>
+        <div class="hint">Already pending as of that month.</div>
       </div>
     </div>
 
@@ -1957,31 +2094,31 @@ function editBucket(id) {
   `, m => {
     const $ = s => m.querySelector(s);
 
-    const syncKind = () => {
-      const k = $("#f-kind").value;
-      // a group's card reads "N holdings", so a free-text label would never show
-      $("#wrap-tracks").hidden = k === "group";
-      $("#wrap-mem").hidden = k !== "group";
-    };
-    $("#f-kind").onchange = syncKind;
+    /* No onchange on Type any more: it used to show or hide the holdings list and
+       the free-text label depending on the category. All three categories now take
+       the same fields, so the form does not rearrange itself under you. */
 
     /* The currency is not a label on the buys — it denominates the whole bucket,
        so the two amount fields on this form are in it too. That was the part
        nothing said out loud: an unlabelled "Amount per month" on a bucket marked
        USD is a coin toss, and either reading produced a ledger that balanced
-       dollars against rupees. Now the unit is written next to every field that
-       has one, and it follows the select while you are still deciding. */
+       dollars against rupees. A paragraph under the toggle used to explain this;
+       "in ₹" / "in $" beside each amount field says the same thing in two
+       characters, at the field it applies to, and follows the toggle live. */
     const syncCcy = () => {
       const isUSD = curCcy() === "USD";
+      // the pressed state is derived here, not toggled at the click — this also
+      // runs once on mount, so the stored currency and a tap take the same path
+      m.querySelectorAll("#ccy-seg [data-ccy]").forEach(el =>
+        el.setAttribute("aria-pressed", String((el.dataset.ccy === "USD") === isUSD)));
       m.querySelectorAll("[data-unit]").forEach(el => el.textContent = isUSD ? "in $" : "in ₹");
-      $("#ccy-hint").textContent = isUSD
-        ? "Everything in this bucket is counted in dollars — the monthly amount below, the backlog, "
-          + "the buys and its whole ledger. The rupee cost of a buy is noted beside it, not converted into it."
-        : "The monthly amount below, the backlog and the buys are all in rupees.";
       $("#f-open").step = isUSD ? "25" : "500";
       drawAllocs(readAllocs());
     };
-    $("#f-ccy").onchange = syncCcy;
+    m.querySelectorAll("#ccy-seg [data-ccy]").forEach(btn => btn.onclick = () => {
+      $("#f-ccy").value = btn.dataset.ccy;
+      syncCcy();
+    });
 
     // --- allocation rows
     const readAllocs = () => Array.from(m.querySelectorAll("#alloc-list .allocrow")).map(r => ({
@@ -2002,21 +2139,6 @@ function editBucket(id) {
     };
     syncCcy();   // after drawAllocs exists — it redraws the rows to pick up the step
 
-    // --- member rows
-    const readMems = () => Array.from(m.querySelectorAll("#mem-list .memrow")).map(r => ({
-      name: r.querySelector("[data-mn]").value.trim(),
-      ticker: r.querySelector("[data-mt]").value.trim(),
-      weight: r.querySelector("[data-mw]").value === "" ? null : Number(r.querySelector("[data-mw]").value)
-    })).filter(x => x.name);
-    const drawMems = list => { $("#mem-list").innerHTML = memRows(list); bindMems(); };
-    const bindMems = () => {
-      m.querySelectorAll("[data-mdel]").forEach(btn => btn.onclick = () => {
-        const list = readMems(); list.splice(Number(btn.closest(".memrow").dataset.mi), 1); drawMems(list);
-      });
-    };
-    bindMems();
-    $("#mem-add").onclick = () => drawMems(readMems().concat([{ name: "", ticker: "", weight: null }]));
-
     // --- save
     $("#f-save").onclick = () => {
       const name = $("#f-name").value.trim();
@@ -2035,7 +2157,8 @@ function editBucket(id) {
         openingPending: Number($("#f-open").value) || 0,
         allocations: allocs,
         tracks: $("#f-tracks").value.trim(),
-        members: kind === "group" ? readMems() : (b.members || []),
+        // carried through, not edited and not dropped — see the note on KINDS
+        members: b.members || [],
         note: b.note || ""
       });
       if (mIdx(rec.start) > mIdx(allocs[0].from)) rec.start = allocs[0].from;
@@ -2145,10 +2268,6 @@ function buyForm(id) {
      dollar bucket's lots are dollars, so its months are as exact as any other
      bucket's and the buttons work the same way. */
   const steps = monthSteps(L);
-  const memberField = (b.members || []).length ? `
-    <div class="field"><label for="b-mem">Holding</label>
-      <select id="b-mem"><option value="">— whole group —</option>
-      ${b.members.map(mm => `<option>${esc(mm.name)}</option>`).join("")}</select></div>` : "";
 
   /* One decision only: which months. No date (it is today), no note — fields
      that stood between "I bought" and it being written down, and skipping them
@@ -2203,8 +2322,6 @@ function buyForm(id) {
       <div class="hint" id="b-effect"></div>
     </div>`}
 
-    ${memberField}
-
     <p class="hint" style="margin-top:14px">Dated today${L.monthly > 0 ? ", at " + money(L.monthly, L.ccy) + " a month" : ""}.
       More months than the backlog is fine — the extra carries forward, so the coming months arrive
       already covered and won't show as late. A wrong entry comes back out from the Ledger tab.</p>
@@ -2216,7 +2333,6 @@ function buyForm(id) {
     const monEl = m.querySelector("#b-months");
     const amtEl = m.querySelector("#b-amt");
     const fxEl = m.querySelector("#b-fx");
-    const memSel = m.querySelector("#b-mem");
 
     /* `raw` is always in the bucket's own currency — that is what the ledger
        consumes and what gets read back out. The rate is a rupee-cost annotation
@@ -2229,7 +2345,7 @@ function buyForm(id) {
         id: uid(), bucketId: b.id, date: todayISO(),
         ccy: L.ccy, rawAmount: raw, fx,
         amountInr: isUSD ? (fx ? Math.round(raw * fx) : null) : Math.round(raw),
-        member: memSel ? memSel.value : "", note: ""
+        note: ""
       });
       markDirty(); closeModal(); renderAll();
       toast(money(raw, L.ccy) + " recorded");
@@ -2301,31 +2417,14 @@ function buyForm(id) {
   });
 }
 
-/* ---------- log a deliberate wait ---------- */
+/* A "log a wait" sheet used to live here. It recorded that you looked at a
+   bucket and chose not to buy, which fed a "Reviewed 4d ago" line on the card —
+   the pair was removed together, since a log nothing reads is just typing.
 
-function skipForm(id) {
-  const b = S.buckets.find(x => x.id === id);
-  openModal(`
-    <h2>Log a wait — ${esc(b.name)}</h2>
-    <p class="muted" style="margin-top:-6px">Records that you looked and chose not to buy, so the
-      backlog age reads as a decision rather than an oversight.</p>
-    <div class="field" style="max-width:220px"><label for="s-date">Date</label>
-      <input id="s-date" type="date" value="${todayISO()}" max="${todayISO()}"></div>
-    <div class="field"><label for="s-why">Reason</label>
-      <input id="s-why" placeholder="e.g. at a high, up 3 months straight, waiting for salary"></div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn primary" id="s-save">Log wait</button>
-    </div>
-  `, m => {
-    m.querySelector("#s-save").onclick = () => {
-      S.skips.push({ id: uid(), bucketId: b.id,
-        date: m.querySelector("#s-date").value || todayISO(),
-        reason: m.querySelector("#s-why").value.trim() });
-      markDirty(); closeModal(); renderAll(); toast("Wait logged");
-    };
-  });
-}
+   S.skips itself stays: it never touched the arithmetic (pending, lapsing and
+   the cap are computed from credits and purchases alone), so any waits already
+   recorded are inert, and the Ledger still lists and deletes them. Reading old
+   data is free; deleting it is not reversible. */
 
 /* ============================================================
    11. Cloud sync — one JSON file in a private GitHub repo
@@ -2550,22 +2649,15 @@ function syncQueue() {
    returns, so spending the loudest colour on it would train you to ignore the
    loudest colour. */
 function setSyncBadge(state, why) {
-  /* The refresh button appears and disappears with the config, and this function
-     is already the one thing that runs at boot, on every edit and after every
-     exchange — so it is where that gets noticed, rather than in a fourth place
-     that can fall out of step. Done before the early return below, because it
-     does not depend on the badge existing. */
-  const rf = document.getElementById("btn-refresh");
-  if (rf) rf.hidden = !syncCfg();
-
   const el = document.getElementById("btn-sync");
   if (!el) return;
   if (!state) state = !syncCfg() ? "off" : localChanged() ? "pend" : "ok";
   el.classList.toggle("s-warn", state === "warn");
   el.classList.toggle("s-pend", state === "pend");
   el.classList.toggle("s-busy", state === "busy");
-  /* Mirror the two states that need answering onto the kebab: on a phone this
-     button is inside a closed menu, and a warning nobody can see is not one. */
+  /* Mirror the two states that need answering onto the menu button: Sync now
+     lives inside a closed menu at every width, and a warning nobody can see is
+     not one. */
   const kb = document.getElementById("btn-menu");
   if (kb) {
     kb.classList.toggle("s-warn", state === "warn");
@@ -2748,8 +2840,9 @@ document.querySelectorAll("nav.tabs button").forEach(btn => btn.onclick = () => 
 });
 
 document.getElementById("btn-add").onclick = () => editBucket();
-document.getElementById("btn-save").onclick = saveToFile;
-document.getElementById("btn-load").onclick = loadFromFile;
+/* Save to file / Load file are wired inline on Plan → Data, which is the one place
+   they live now. They were in the header menu too, and a second copy of an action
+   is a second thing to keep in step for no reach it did not already have. */
 document.getElementById("btn-sync").onclick = syncPanel;
 
 /* Refresh = pull, with the same guard the Sync panel's Pull button carries.
@@ -2765,16 +2858,17 @@ document.getElementById("btn-sync").onclick = syncPanel;
    upload says the wrong thing. */
 const refreshBtn = document.getElementById("btn-refresh");
 refreshBtn.onclick = async () => {
-  if (!syncCfg()) return;
+  /* Nothing to pull from yet, so this becomes the way in to setting that up
+     rather than a tap that does nothing. */
+  if (!syncCfg()) { syncPanel(); return; }
   if (localChanged() && !confirm("This device has changes the cloud has not seen. Refreshing replaces them with the cloud copy. Continue?")) return;
   refreshBtn.classList.add("spin");
   try { await pullNow(false); }
   finally { refreshBtn.classList.remove("spin"); }
 };
 
-/* The kebab only does anything below 620px. Above it, .actions is a plain row and
-   the .open class is inert — so rotating a phone into landscape needs no resize
-   handler to tidy up, which is the one thing this file will not add back. */
+/* One menu at every width, so this needs no resize handler and no second layout
+   to keep in step — the .open class is the whole state. */
 const kebabBtn = document.getElementById("btn-menu");
 const topMenu = document.getElementById("top-menu");
 function closeTopMenu() {
@@ -2787,27 +2881,16 @@ kebabBtn.onclick = e => {
   topMenu.classList.toggle("open", open);
   kebabBtn.setAttribute("aria-expanded", String(open));
 };
-/* Closed on any click inside, not per button: all six either act at once or open
-   a modal, and none of them wants the menu still hanging over the result. */
+/* Closed on any click inside, not per button: both either act at once or open a
+   modal, and neither wants the menu still hanging over the result. */
 topMenu.addEventListener("click", closeTopMenu);
 document.addEventListener("click", closeTopMenu);
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeTopMenu(); });
 
-/* Lite defaults ON. It was chosen for a streamed desktop, but the measured
-   reason outlived that: the translucent grid rasters ~5x (see the stylesheet
-   header), and a phone GPU is where that is felt most. The button is the A/B —
-   the full glass is one click away and the choice sticks. */
-const liteBtn = document.getElementById("btn-lite");
-function applyLite(on) {
-  if (on) document.documentElement.setAttribute("data-lite", "");
-  else document.documentElement.removeAttribute("data-lite");
-  liteBtn.textContent = on ? "Full glass" : "Lite";
-  try { localStorage.setItem("dt-lite", on ? "1" : "0"); } catch (e) {}
-}
-liteBtn.onclick = () => applyLite(!document.documentElement.hasAttribute("data-lite"));
-applyLite((() => {
-  try { return localStorage.getItem("dt-lite") !== "0"; } catch (e) { return true; }
-})());
+/* The Lite skin used to be applied here, and it defaulted ON. It is gone by
+   request — full glass everywhere, no toggle. Its old localStorage key ("dt-lite")
+   is left alone rather than swept: nothing reads it now, and clearing keys on
+   boot is how you lose data you meant to keep. */
 
 const themeBtn = document.getElementById("btn-theme");
 function applyTheme(t) {
