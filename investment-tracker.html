@@ -1006,13 +1006,18 @@
      to eighty characters ("... - Direct Plan - Growth Option"), which a select
      truncates on every platform, and the distinguishing words are at the end. */
   .srcfind { margin-top: 8px; }
-  .srcfind .customrow { margin-bottom: 6px; }
+  .srcfind > #f-src-q { margin-bottom: 6px; }
   /* Ticked by default, and that default is the whole feature: mfapi returns every
      plan and option of a fund as its own row, so an unfiltered search for a
      popular index fund is thirty rows of which one is the one you hold. */
   .srconly { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
   .srconly input { width: auto; margin: 0; }
   .srcres { margin-top: 7px; display: grid; gap: 4px; max-height: 244px; overflow-y: auto; }
+  /* Held while a newer query is in flight. Dimmed rather than cleared, and no
+     spinner: the next answer is usually a subset of this one, so blanking the list
+     between keystrokes would make it flicker on every letter. Opacity only —
+     nothing moves, so a row cannot slide out from under a finger mid-tap. */
+  .srcres.stale { opacity: .45; }
   .srcpick {
     display: block; width: 100%; text-align: left; cursor: pointer;
     font: inherit; font-size: 12px; padding: 7px 9px;
@@ -1726,6 +1731,18 @@ const deployedOf = (b, p) => ccyOf(b) === "USD"
   ? (Number(p.rawAmount) || 0)
   : (Number(p.amountInr) || Number(p.rawAmount) || 0);
 
+/* Below this, a balance is not money — it is binary floating point.
+   Five $5.55 lots drained by one $27.75 buy leave 1.78e-15 in the last one,
+   because 5.55 has no exact double and the subtractions do not cancel. The card
+   then printed "$0 pending" beside "This month still to invest", which is the
+   same bug reported twice: the number rounded to nothing and the test did not.
+   Half a cent is the threshold because a cent is the smallest amount either
+   currency can actually settle, so anything under half of one cannot be a real
+   debt — and it is far above any residue a few dozen subtractions can produce.
+   Rounding the lots themselves instead would be wrong: it changes what is owed
+   to make the display agree, which is the tail wagging the dog. */
+const ZERO = 0.005;
+
 function computeLedger(b) {
   const cap = Number(S.settings.capMonths) || 4;
   const start = b.start || (b.allocations && b.allocations[0] && b.allocations[0].from) || thisMonth();
@@ -1750,8 +1767,11 @@ function computeLedger(b) {
     if (i === s && Number(b.openingPending) > 0) credit += Number(b.openingPending);
     credited += credit;
     let net = credit;
-    if (advance > 0 && net > 0) { const use = Math.min(advance, net); advance -= use; net -= use; }
-    if (net > 0) lots.push({ month: m, amount: credit, left: net });
+    if (advance > ZERO && net > 0) {
+      const use = Math.min(advance, net); advance -= use; net -= use;
+      if (advance < ZERO) advance = 0;
+    }
+    if (net > ZERO) lots.push({ month: m, amount: credit, left: net });
 
     // (3) purchases up to and including this month, oldest first.
     //     "<=" not "===" so a buy dated before the tracking start still lands in a row
@@ -1761,10 +1781,13 @@ function computeLedger(b) {
       let amt = deployedOf(b, px[pi]);
       deployedThis += amt; deployed += amt;
       for (const lot of lots) {
-        if (amt <= 0) break;
-        if (lot.left > 0) { const take = Math.min(lot.left, amt); lot.left -= take; amt -= take; }
+        if (amt <= ZERO) break;
+        if (lot.left > 0) {
+          const take = Math.min(lot.left, amt); lot.left -= take; amt -= take;
+          if (lot.left < ZERO) lot.left = 0;   // a fully-paid month, said exactly
+        }
       }
-      if (amt > 0) advance += amt;   // bought ahead of budget
+      if (amt > ZERO) advance += amt;   // bought ahead of budget
       pi++;
     }
 
@@ -1781,10 +1804,13 @@ function computeLedger(b) {
     deployed += amt; ahead += amt;
     let rest = amt;
     for (const lot of lots) {
-      if (rest <= 0) break;
-      if (lot.left > 0) { const take = Math.min(lot.left, rest); lot.left -= take; rest -= take; }
+      if (rest <= ZERO) break;
+      if (lot.left > 0) {
+        const take = Math.min(lot.left, rest); lot.left -= take; rest -= take;
+        if (lot.left < ZERO) lot.left = 0;
+      }
     }
-    if (rest > 0) advance += rest;
+    if (rest > ZERO) advance += rest;
   }
   if (ahead > 0 && rows.length) {
     const last = rows[rows.length - 1];
@@ -1792,8 +1818,9 @@ function computeLedger(b) {
     last.balance = lots.reduce((t, l) => t + l.left, 0);
   }
 
-  const open = lots.filter(l => l.left > 0);
+  const open = lots.filter(l => l.left > ZERO);
   const pending = open.reduce((t, l) => t + l.left, 0);
+  if (advance < ZERO) advance = 0;   // same reason: never "Paid ahead by $0.00"
   const oldest = open.length ? open.reduce((a, l) => (mIdx(l.month) < mIdx(a.month) ? l : a)) : null;
   const notStarted = s > e;
   const monthly = notStarted ? allocFor(b, start) : allocFor(b, thisMonth());
@@ -2869,37 +2896,60 @@ function editBucket(id) {
        every plan and every option of every plan separately, and the difference
        between the right one and the wrong one is the words "Direct" and "Growth"
        at the end of an eighty-character name. Refining had to be possible without
-       going back and rewriting the bucket's own name. */
-    let hits = [];
-    const drawFind = (q, msg) => {
+       going back and rewriting the bucket's own name.
+
+       It searches as you type, and the panel below is built ONCE for that reason.
+       The first version rewrote the whole panel's innerHTML on every state change,
+       which is harmless for a button you press and impossible for a field you type
+       into — the element it replaced each time was the one holding the caret. Now
+       only the message line and the result list are repainted; the input and the
+       checkbox are never touched after mount. */
+    let hits = [];        // the last answer that arrived, unfiltered
+    let asked = "";       // the query those hits belong to, for the count line
+    let timer = 0, seq = 0;
+    /* Answers are kept per query, so backspacing a word is instant and costs no
+       request. It is per-panel, so it dies with the modal — a fund list is not
+       worth persisting, and mfapi's own results do change when funds launch. */
+    const cache = new Map();
+
+    /* "Direct plan" and "not IDCW" is exactly what this does, so it is exactly
+       what the checkbox says. It deliberately does not require "Growth": ICICI's
+       own direct plan for the Nifty 50 is named "- Cumulative", which means the
+       same thing, and a filter demanding the word would hide the right fund. */
+    const filtered = () => {
       const only = m.querySelector("#f-src-only");
-      const direct = !only || only.checked;
-      const shown = (direct ? hits.filter(f => /direct/i.test(f.schemeName) && !/idcw|dividend/i.test(f.schemeName)) : hits);
-      res().innerHTML = `
-        <div class="srcfind">
-          <div class="customrow">
-            <input id="f-src-q" value="${esc(q)}" placeholder="Fund name" autocomplete="off">
-            <button class="btn" id="f-src-go" type="button">Search</button>
-          </div>
-          ${/* "Direct plan" and "not IDCW" is exactly what the filter does, so it
-                is exactly what the label says. It deliberately does not say
-                "growth": ICICI's own direct plan for the Nifty 50 is named
-                "- Cumulative", which means the same thing, and a filter that
-                required the word "Growth" would hide the correct fund. */""}
-          <label class="srconly"><input type="checkbox" id="f-src-only" ${direct ? "checked" : ""}>
-            Direct plans only, no IDCW</label>
-          ${msg ? `<div class="hint">${msg}</div>` : ""}
-          ${shown.length ? `<div class="srcres">${shown.slice(0, 12).map(f =>
-            `<button type="button" class="srcpick" data-code="${f.schemeCode}">
-               <b>${esc(f.schemeName)}</b><span>${f.schemeCode}</span></button>`).join("")}${
-            shown.length > 12 ? `<div class="hint">${shown.length - 12} more — add words to narrow it.</div>` : ""}</div>`
-            : hits.length ? `<div class="hint">Nothing left after filtering. Untick the box to see all
-              ${hits.length} matches.</div>` : ""}
-        </div>`;
-      $("#f-src-go").onclick = () => run($("#f-src-q").value.trim());
-      $("#f-src-q").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#f-src-go").click(); } };
-      $("#f-src-only").onchange = () => drawFind($("#f-src-q").value, msg);
-      res().querySelectorAll(".srcpick").forEach(btn => btn.onclick = () => pick(btn.dataset.code, btn.querySelector("b").textContent));
+      return (!only || only.checked)
+        ? hits.filter(f => /direct/i.test(f.schemeName) && !/idcw|dividend/i.test(f.schemeName))
+        : hits;
+    };
+
+    /* `stale` holds the previous list at reduced opacity while a newer request is
+       in flight, instead of blanking it or flashing a spinner. Typing one more
+       letter usually narrows the list rather than replacing it, so the rows under
+       your finger stay where they are and stay readable. */
+    const paint = (msg, stale) => {
+      const list = m.querySelector("#f-src-list"), note = m.querySelector("#f-src-msg");
+      if (!list) return;
+      const shown = filtered();
+      if (msg == null) {
+        msg = !asked ? ""
+          : !hits.length ? `No fund matched “${esc(asked)}”. Try fewer words — “icici nifty 50”,
+              not the full plan name.`
+          : !shown.length ? `All ${hits.length} matches are regular or IDCW plans.
+              Untick the box to see them.`
+          : shown.length === hits.length ? `${shown.length} match${shown.length === 1 ? "" : "es"}.`
+          : `${shown.length} of ${hits.length} — the rest are regular or IDCW plans.`;
+      }
+      note.innerHTML = msg;
+      list.innerHTML = shown.slice(0, 12).map(f =>
+        `<button type="button" class="srcpick" data-code="${f.schemeCode}">
+           <b>${esc(f.schemeName)}</b><span>${f.schemeCode}</span></button>`).join("")
+        + (shown.length > 12
+          ? `<div class="hint">${shown.length - 12} more — add words to narrow it.</div>` : "");
+      list.classList.toggle("stale", !!stale);
+      if (shown.length) list.removeAttribute("hidden"); else list.setAttribute("hidden", "");
+      list.querySelectorAll(".srcpick").forEach(btn =>
+        btn.onclick = () => pick(btn.dataset.code, btn.querySelector("b").textContent));
     };
 
     /* Picking writes the code, and then immediately asks mfapi what that code
@@ -2935,23 +2985,67 @@ function editBucket(id) {
     }
 
     async function run(q) {
-      if (!q) { toast("Type a name to search for"); return; }
-      hits = [];
-      drawFind(q, "Searching…");
+      if (q.length < 3) {
+        /* Two letters match thousands of schemes and the request would be thrown
+           away by the third keystroke anyway. Saying so beats an empty list. */
+        hits = []; asked = "";
+        paint(q ? "Three letters or more." : "Type a fund name — “icici nifty 50”, “parag flexi”.");
+        return;
+      }
+      if (cache.has(q)) { hits = cache.get(q); asked = q; paint(); return; }
+      /* A sequence number rather than an AbortController: the requests are a few
+         hundred bytes each and the thing that actually matters is that a slow
+         answer to "ici" cannot overwrite the list for "icici nifty" — responses
+         do not come back in the order they were sent. */
+      const mine = ++seq;
+      paint(null, true);
       try {
         const r = await fetch("https://api.mfapi.in/mf/search?q=" + encodeURIComponent(q), { cache: "no-store" });
         if (!r.ok) throw new Error("HTTP " + r.status);
-        hits = (await r.json()) || [];
-        drawFind(q, hits.length ? `${hits.length} match${hits.length === 1 ? "" : "es"} for “${esc(q)}”.`
-                                : `No fund matched “${esc(q)}”. Try fewer words — “icici nifty 50”, not the full plan name.`);
+        const list = (await r.json()) || [];
+        if (mine !== seq) return;
+        cache.set(q, list);
+        hits = list; asked = q; paint();
       } catch (e) {
-        hits = [];
-        drawFind(q, `Could not reach the fund list (${esc(String(e.message || e))}).
+        if (mine !== seq) return;
+        hits = []; asked = q;
+        paint(`Could not reach the fund list (${esc(String(e.message || e))}).
           You can paste the scheme code straight into the field above.`);
       }
     }
 
-    $("#f-src-find").onclick = () => run(seed());
+    /* Opens once and stays open; pressing the button again just returns the caret
+       to the box rather than throwing away what is typed there. */
+    $("#f-src-find").onclick = () => {
+      if (m.querySelector("#f-src-q")) { $("#f-src-q").focus(); $("#f-src-q").select(); return; }
+      res().innerHTML = `
+        <div class="srcfind">
+          <input id="f-src-q" placeholder="Type a fund name" autocomplete="off" spellcheck="false">
+          <label class="srconly"><input type="checkbox" id="f-src-only" checked>
+            Direct plans only, no IDCW</label>
+          <div class="hint" id="f-src-msg"></div>
+          <div class="srcres" id="f-src-list" hidden></div>
+        </div>`;
+      $("#f-src-only").onchange = () => paint();
+      $("#f-src-q").oninput = () => {
+        const q = $("#f-src-q").value.trim();
+        clearTimeout(timer);
+        /* 300ms after the last keystroke, not on every one. "icici nifty 50" is
+           fifteen keystrokes and mfapi answers in roughly 200–500ms, so firing
+           per key would put a dozen requests in flight to render one list. */
+        timer = setTimeout(() => run(q), 300);
+        // a query already answered paints immediately, so held rows never look stuck
+        if (cache.has(q)) { hits = cache.get(q); asked = q; paint(); }
+        else if (q.length >= 3) paint(null, true);
+      };
+      // Enter is not a submit here — there is nothing to submit — and left alone it
+      // would post the form that this modal sits in.
+      $("#f-src-q").onkeydown = e => { if (e.key === "Enter") e.preventDefault(); };
+      $("#f-src-q").value = seed();
+      $("#f-src-q").focus();
+      $("#f-src-q").select();
+      run(seed());
+    };
 
     /* Tickers cannot be searched from here — Yahoo sends no CORS header, which is
        the whole reason the workflow exists — so this hands the job to Yahoo's own
@@ -3623,7 +3717,18 @@ function syncPanel() {
     </div>
     <p class="hint" style="margin-top:-6px">Pull replaces what is on this device with the cloud copy.
       Push sends this device's copy up. A push is refused if another device saved after your last
-      sync — pull first, then redo the entry.</p>` : `
+      sync — pull first, then redo the entry.</p>
+
+    ${/* Prices are a second file, written by a second author — a workflow in that
+          same repo, not this app — and until now nothing ever said so. pullPrices
+          treats a missing file as the normal state, which is right on boot and
+          useless when you are looking at a dashboard with no graphs on it and no
+          idea which of four things is wrong: no feed on the bucket, data.json not
+          pushed, the workflow not installed, or the token unable to read it. This
+          row asks GitHub and reports the answer. */""}
+    <div class="syncrow" id="s-prices" style="margin-bottom:14px">
+      <span class="muted">Prices — checking…</span>
+    </div>` : `
     <p class="muted" style="margin-top:-2px">Create a <b>private</b> repo with Pages left off — say
       <code>tracker-data</code> — then a fine-grained token limited to that one repo with
       <b>Contents: read and write</b>. Nothing else needs ticking.</p>`}
@@ -3666,6 +3771,46 @@ function syncPanel() {
       <button class="btn primary" id="s-save">Save settings</button>
     </div>
   `, m => {
+    /* One request, on open. Same rule the fetcher uses for what counts as tracked,
+       so the two numbers can be compared: "12 of 16" is the whole diagnosis when a
+       ticker is wrong, and it is invisible on the dashboard, where a bucket with no
+       prices and a bucket with a broken symbol both simply have no row. */
+    if (live) (async () => {
+      const el = m.querySelector("#s-prices");
+      if (!el) return;
+      const tracked = S.buckets.filter(b => {
+        const s = b.source || {};
+        return (s.type === "mfapi" && s.schemeCode) || (s.type === "yahoo" && (s.symbol || "").trim());
+      }).length;
+      const say = (stTok, ic, label, note) => {
+        if (!m.isConnected) return;   // panel closed while the request was out
+        el.innerHTML = `<span class="status" style="--st:var(${stTok})"><span class="ic">${ic}</span>${label}</span>
+          <span class="muted">${note}</span>`;
+      };
+      if (!tracked) {
+        say("--st-idle", "•", "No price feeds set",
+          "open a bucket and use Find fund or Find ticker");
+        return;
+      }
+      const r = await pullPrices(true);
+      if (r.missing) {
+        /* The single most likely reason, and it is not something the app can do for
+           itself: creating a workflow file needs a token with Workflows permission,
+           which this one deliberately does not have. */
+        say("--st-warning", "!", "No prices file yet",
+          `${tracked} feed${tracked === 1 ? "" : "s"} set, but the refresh workflow has not written
+           prices.json — add <code>.github/workflows/prices.yml</code> to that repo and run it once`);
+        return;
+      }
+      if (!r.ok) { say("--st-serious", "▲", "Could not read prices", esc(r.msg || ("HTTP " + r.status))); return; }
+      const got = Object.keys((PRICES || {}).series || {}).length;
+      const bad = Object.keys((PRICES || {}).errors || {});
+      say(bad.length ? "--st-warning" : "--st-good", bad.length ? "!" : "✓",
+        `${got} of ${tracked} priced`,
+        `${PRICES.at ? "refreshed " + agoLabel(PRICES.at) : "no timestamp"}${
+          bad.length ? ` · the feed could not fetch ${esc(bad.join(", "))}` : ""}`);
+    })();
+
     const read = () => ({
       owner: m.querySelector("#s-owner").value.trim(),
       repo: m.querySelector("#s-repo").value.trim(),
