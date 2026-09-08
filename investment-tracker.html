@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MONEY Follows</title>
+<title>MONEY Follows Mah Brotha</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23e24bb4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M7 21l5-6 4 3 5-8' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
   /* ============================================================
@@ -145,6 +145,17 @@
        here, because a mid-luminance orange has nowhere to go on a near-white
        surface. The sync badge's "not pushed" state uses this. */
     --warn-text:     #b44a0c;   /* 5.24:1 on --surface-solid */
+    /* Price direction, and the one green ink in the file. --st-good is a FILL
+       (#0ca30c measures 3.27:1 as text here), so the same split that gave
+       --danger-text its own token applies: a fill and an ink are not one token.
+
+       Emerald rather than grass green, and that is measured, not taste. Paired
+       against --danger-text the obvious #0b7a2c separates by only ΔE 4.2 under
+       deuteranopia — a red card and a green card would be the same card for
+       roughly one man in twelve. Rotating the hue toward the blue end of green
+       until the pair cleared ΔE 8 landed here (8.5 deutan, 6.06:1 as text). It
+       still reads unmistakably green; it just is not the greenest green. */
+    --ok-text:       #0a7044;   /* 6.06:1 on --surface-solid */
     --ghost:         rgba(58,14,72,0.045);
 
     /* Glass rim. Two lit corners with a dark middle, not an even outline —
@@ -259,6 +270,10 @@
        measured 5.93:1 against the LIGHTEST stop of the button's own gradient
        (39,26,46), not against --surface-solid, which flatters it to 6.38. */
     --warn-text:     #f07a3a;   /* 5.93:1 worst case on a .btn face */
+    /* Its own step, not a lightened copy of the light theme's: --danger-text is
+       much lighter here (#ff5f5f), so the green had to move UP in lightness too
+       to keep the pair apart under CVD. Measured 8.1 ΔE protan, 5.62:1 as text. */
+    --ok-text:       #26a566;
     /* controls sunk INTO glass read as darker wells, not lighter ones — the
        inner pill in the reference is darker than the panel around it */
     --ghost:         rgba(8,3,12,0.32);
@@ -881,6 +896,139 @@
   .card-actions .btn.sm.iconbtn { width: 38px; height: auto; align-self: stretch; }
   .card-actions .btn.sm.iconbtn svg { display: block; }
 
+  /* ---------- price: claim, sparkline, context ----------
+     A <button> because it opens the full chart, and a real button rather than a
+     div so Enter, Space, focus order and the accessible name come free. It is
+     styled flat so it reads as a line of the card rather than a control — the
+     hover tint is the only affordance, which is the right weight for something
+     every card carries. */
+  .pricerow {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    margin-top: 9px; padding: 7px 9px;
+    font: inherit; text-align: left; cursor: pointer;
+    border: 1px solid var(--gridline); border-radius: 11px;
+    background: transparent; color: var(--text-secondary);
+    /* colour only: a lift here would move a 90-point path and the row below it */
+    transition: background .16s ease, border-color .16s ease;
+  }
+  .pricerow:hover { background: var(--ghost); border-color: var(--border); }
+  .pricerow:focus-visible {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
+  }
+  .pclaim { font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--text-primary); }
+  /* Pushed right, and the only thing allowed to shrink: on a narrow card the
+     context truncates before the claim or the graph does. */
+  .pctx {
+    margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: 11px; color: var(--text-muted);
+  }
+  .spark { flex: 0 0 auto; display: block; overflow: visible; }
+  /* 2px round-capped line, per the house chart specs. currentColor so one rule
+     re-tones the whole graph from the tone class on the row. */
+  .sl { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  /* The end dot carries a 2px ring in the SURFACE colour, not a border: it has
+     to stay legible where it lands on top of the line it terminates. */
+  .sd { fill: currentColor; stroke: var(--surface-solid); stroke-width: 2; }
+
+  /* Two tones, and the graph's own direction picks it: down at ANY window's low
+     is red, anything else is green. Requested explicitly, and it is the market
+     convention, so it will read instantly — worth noting only that it inverts
+     the buyer's meaning, since a low is the moment to deploy, and this now
+     paints that moment in the same red the card uses for lapsing budget.
+
+     Red-and-green is the textbook colourblind failure, so the colour is never
+     the only channel: the claim beside the line says "3-month low" or "12-month
+     high" in words, and the percentage on the right gives the position as a
+     number. Remove the words and this row would be broken for ~8% of men.
+
+     The colour no longer carries loudness, which the old accent/ink pair did —
+     a technically-true "1-month low" on something sitting at 95% of its year
+     now gets the same red as a genuine one. The context sentence is what stops
+     that being misread, which is why it is always rendered. */
+  .pricerow.tone-low {
+    color: var(--danger-text);
+    border-color: color-mix(in oklab, var(--danger-text) 34%, var(--gridline));
+    background: color-mix(in oklab, var(--danger-text) 6%, transparent);
+  }
+  .pricerow.tone-high { color: var(--ok-text); }
+  /* The claim wears the direction too: it is the text half of the same signal,
+     and the one thing that keeps the signal readable without colour. */
+  .pricerow.tone-low .pclaim  { color: var(--danger-text); }
+  .pricerow.tone-high .pclaim { color: var(--ok-text); }
+
+  /* Held at reduced opacity while a refresh is in flight, rather than blanked to
+     a skeleton: the numbers on screen are still the numbers, they are just a
+     minute old, and a flash of empty boxes on sixteen cards is a layout jump
+     that says less than the stale value did. */
+  body.prices-busy .pricerow { opacity: .55; }
+
+  /* ---------- price: the detail sheet ---------- */
+  .pshead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 3px; }
+  /* Proportional figures, not tabular: this is a display-size standalone number,
+     and tabular-nums gives every digit the width of a 0, which makes something
+     like 121 look loose. The table below is where tabular belongs. */
+  .psprice { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; }
+  .pssub { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+  .psrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  /* Height comes from the SVG, which is drawn at the container's own pixel width
+     and includes the x-axis band in its box — a fixed height that fitted only the
+     plot would give the modal a nested scrollbar to read the dates through. */
+  .chartbox { position: relative; margin: 0 -2px 12px; color: var(--text-muted); }
+  .chartbox svg { display: block; width: 100%; touch-action: pan-y; }
+  /* Line, area wash and dots are all currentColor, so the direction is set once
+     here and the whole chart follows — same two tones as the card row. */
+  .chartbox.tone-low  { color: var(--danger-text); }
+  .chartbox.tone-high { color: var(--ok-text); }
+
+  .parea { fill: currentColor; opacity: .10; stroke: none; }
+  .pline { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .pgrid { stroke: var(--gridline); stroke-width: 1; }        /* solid hairline, never dashed */
+  .plab  { fill: var(--text-muted); font-size: 10.5px; }      /* text tokens, never the data colour */
+  .plab.hi, .plab.lo { font-weight: 600; }
+  .pdot { fill: currentColor; stroke: var(--surface-solid); stroke-width: 2; }
+  .pend { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
+
+  /* The crosshair is a supplement: every number it shows is also written in the
+     table under the chart, so a keyboard or touch reader loses nothing. */
+  .pchair { stroke: var(--text-muted); stroke-width: 1; opacity: .55; }
+  .ptip {
+    position: absolute; top: 0; left: 0; pointer-events: none;
+    padding: 5px 8px; border-radius: 8px; font-size: 11.5px; white-space: nowrap;
+    background: var(--surface-solid); border: 1px solid var(--border);
+    color: var(--text-primary); box-shadow: 0 6px 18px -8px rgba(20,4,28,.4);
+  }
+  .ptip b { font-variant-numeric: tabular-nums; }
+  .ptip .d { color: var(--text-muted); font-weight: 400; }
+
+  /* Fund-search results. A list of buttons rather than a <select>: the names run
+     to eighty characters ("... - Direct Plan - Growth Option"), which a select
+     truncates on every platform, and the distinguishing words are at the end. */
+  .srcfind { margin-top: 8px; }
+  .srcfind .customrow { margin-bottom: 6px; }
+  /* Ticked by default, and that default is the whole feature: mfapi returns every
+     plan and option of a fund as its own row, so an unfiltered search for a
+     popular index fund is thirty rows of which one is the one you hold. */
+  .srconly { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+  .srconly input { width: auto; margin: 0; }
+  .srcres { margin-top: 7px; display: grid; gap: 4px; max-height: 244px; overflow-y: auto; }
+  .srcpick {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    font: inherit; font-size: 12px; padding: 7px 9px;
+    border: 1px solid var(--gridline); border-radius: 9px;
+    background: transparent; color: var(--text-secondary);
+    transition: background .16s ease, border-color .16s ease;
+  }
+  .srcpick:hover { background: var(--ghost); border-color: var(--border); }
+  .srcpick b { display: block; font-weight: 600; color: var(--text-primary); }
+  .srcpick span { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  /* The window whose extreme today's price is sitting on. Weight and ink, not
+     hue: these are values in a table, and a value that wears the chart's colour
+     starts looking like a second series. */
+  table.grid td.mark { color: var(--text-primary); font-weight: 600; }
+
   /* ---------- tables ---------- */
   table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.grid th, table.grid td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--gridline); }
@@ -1044,6 +1192,15 @@
   .buychip b { font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; }
   .buychip span { font-size: 11.5px; font-weight: 400; }
   .customrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; }
+  /* Two lookup buttons, so a third column rather than letting the second one wrap
+     under a full-width input. Under 640px the field goes back to its own line and
+     the buttons share the one below it, which is the only way two of them fit at
+     375px without either shrinking to an ellipsis. */
+  .customrow.two { grid-template-columns: 1fr auto auto; }
+  @media (max-width: 640px) {
+    .customrow.two { grid-template-columns: 1fr 1fr; }
+    .customrow.two > input { grid-column: 1 / -1; }
+  }
 
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
   .modal-actions .left { margin-right: auto; }
@@ -1115,6 +1272,14 @@
     .moneypair { column-gap: 9px; }
     .hero .side { gap: 20px; }
     header.top { top: 6px; }
+    /* The title got longer than the header. Two short lines rather than an
+       ellipsis, because the part that would be cut is the part that was added on
+       purpose; nowrap stays on desktop, where it fits on one line. */
+    .brand h1 {
+      font-size: 14.5px; line-height: 1.2; white-space: normal;
+      overflow: visible; text-overflow: clip;
+    }
+    .brand { gap: 9px; }
     nav.tabs { display: flex; width: 100%; }
     nav.tabs button { flex: 1; padding: 8px 6px; }
     .cards { grid-template-columns: 1fr; }
@@ -1192,6 +1357,31 @@
     table.grid td[data-label="Note"]:empty { display: none; }
     table.grid td[data-label="Note"]::before { display: block; margin-bottom: 1px; }
     .row-act { padding-top: 7px !important; }
+
+    /* The price windows opt OUT of the stacking above. Stacking is right for the
+       ledger, whose rows carry six fields and a free-text note; these carry three
+       short numbers and a one-word label, so the generic treatment turned four
+       rows into four blocks about 120px tall — half a phone screen of table above
+       a chart that is the point of the sheet. Four columns of eleven-point figures
+       fit in 375px with room to spare, so the table simply stays a table. */
+    table.grid.pspans { display: table; font-size: 11.5px; }
+    table.grid.pspans thead { display: table-header-group; }
+    table.grid.pspans tbody { display: table-row-group; }
+    table.grid.pspans tr { display: table-row; padding: 0; }
+    table.grid.pspans th, table.grid.pspans td {
+      display: table-cell; padding: 5px 3px; border-bottom: 1px solid var(--gridline);
+      font-size: inherit; font-weight: inherit; text-align: right;
+    }
+    table.grid.pspans th { font-size: 10.5px; }
+    table.grid.pspans th:first-child, table.grid.pspans td:first-child {
+      text-align: left; padding-left: 0; white-space: nowrap;
+    }
+    table.grid.pspans th:last-child, table.grid.pspans td:last-child { padding-right: 0; }
+    table.grid.pspans td.mark { font-weight: 600; }
+    table.grid.pspans tbody tr:last-child td { border-bottom: none; }
+    /* the ::before labels are the stacked layout's; with the header row back they
+       would print the column name inside every cell */
+    table.grid.pspans td::before { content: none; display: none; }
   }
 </style>
 </head>
@@ -1202,7 +1392,7 @@
   <header class="top glass">
     <div class="brand">
       <span class="mark" aria-hidden="true"></span>
-      <h1>MONEY Follows</h1>
+      <h1>MONEY Follows Mah Brotha</h1>
     </div>
     <div class="top-actions">
       <span class="dot-unsaved" title="Unsaved changes"></span>
@@ -1276,6 +1466,27 @@ const DEFAULTS = () => ({
 let S = DEFAULTS();
 let fileHandle = null;
 let dirty = false;
+
+/* Prices live OUTSIDE S, in their own localStorage key, and this is the one
+   design decision in the price feature that must not be undone. S is what gets
+   written to data.json and pushed to the repo, so a price history parked in
+   there would be uploaded on every buy, would grow the synced file by tens of
+   kilobytes, and would be echoed back to every other device — which is exactly
+   what the old `navCache` did, and why migrate() still deletes it on sight.
+
+   It is a cache in the honest sense: derived, disposable, and replaceable from
+   the network. Nothing in the plan depends on it, so losing it costs a refresh
+   and never costs data.
+
+   Loaded in boot() rather than here: lsGet is a `const` declared with the sync
+   code far below, so calling it at this point in the top-level script would hit
+   its temporal dead zone.
+
+   Spelled out rather than shortened, because buyForm already has a local `P`
+   (paidThrough) and a one-letter global that a function shadows is a bug waiting
+   for whoever adds a price line to that form. */
+const PRICES_KEY = "dt-prices";
+let PRICES = null;
 
 /* computeLedger walks every month since a bucket started, and four render
    paths each wanted it for every bucket. Memoised per render pass instead. */
@@ -1368,6 +1579,14 @@ async function loadFromFile() {
    subtitle and reads "no description" — the data is right there, so carry it
    across rather than making you retype it. It only ever fills a blank, so
    running it on every load cannot overwrite something you have since edited.
+
+   `source` itself is live again and is NOT touched here: the price feed reads the
+   same field the old code wrote, which is why four funds that have carried their
+   scheme codes through all of this need no migration and started returning prices
+   the moment the workflow ran. `source.schemeName` is live again too, written by
+   the fund picker so a bucket linked one minute ago can already name its fund;
+   once prices arrive the feed's own name is what gets displayed, because that is
+   the one that proves what was actually fetched.
 
    What it deliberately does NOT do is delete the other leftovers. targetPrice
    and priceLog are numbers you typed by hand; nothing reads them any more, but
@@ -1664,12 +1883,497 @@ const kindOf = b => {
   return "mf";
 };
 
-/** What a bucket tracks, in words. Free text you type, not a linked feed —
-    there is no price fetching in this app, so nothing has to match a
-    provider's spelling. Buckets loaded from an older file carry the linked
-    scheme name into it, so existing cards keep their subtitles. */
+/** What a bucket tracks, in words. Free text, independent of the price feed:
+    `tracks` is your own description, `source` is the machine-readable link. They
+    are separate on purpose — renaming your note must never break the prices, and
+    a feed's official name ("ICICI Prudential Nifty 50 Index Fund - Direct Plan -
+    Cumulative") is not what you want to read on a card. */
 function tracksLabel(b) {
   return (b.tracks || "").trim() || "no description";
+}
+
+/* ============================================================
+   4. Prices — where a holding sits in its own recent range
+
+   The question this answers is "is this cheap right now, by its own recent
+   standards", which is a different question from "how much do I owe it" that
+   the rest of the app is about. It is deliberately not a portfolio valuation:
+   nothing here multiplies a price by a quantity, because the app does not track
+   quantities and pretending otherwise would be the most misleading thing it
+   could do.
+
+   Nothing in here fetches. prices.json is built once a day by a workflow in the
+   private repo and read in section 11 — see the comment there for why a browser
+   cannot do this itself. Everything below is pure computation over that file.
+   ============================================================ */
+
+/* Calendar days back, not trading days: "6-month low" is a claim about the last
+   six months of the year, and a reader does not care that one of them had more
+   public holidays than another. */
+const PRICE_WINDOWS = [
+  { key: "1m",  days: 30,  label: "1-month"  },
+  { key: "3m",  days: 91,  label: "3-month"  },
+  { key: "6m",  days: 182, label: "6-month"  },
+  { key: "12m", days: 365, label: "12-month" }
+];
+
+/* Why a tolerance at all: "exactly the lowest close" almost never fires, and a
+   price 0.2% above its six-month low is at its six-month low by any human
+   reading. Why two tests rather than one:
+
+   NEAR_EDGE is a share of the window's own range, so it self-scales — the
+   bottom 6% of a range that spans 40% of the price is a much wider band in
+   rupees than the bottom 6% of one that spans 3%.
+   ABS_SLACK catches the case NEAR_EDGE handles badly: in a very tight range,
+   6% of it can be a rounding error, so being within 0.5% of the actual extreme
+   qualifies regardless.
+   MIN_RANGE is the guard the other two need. Position inside a range narrower
+   than 2% of the price is noise being read as signal — measured on real data,
+   a fund whose month spanned 1.5% was ranked at "95% of its 1-month range",
+   which sounds like a high and means nothing. Below that width the position
+   test is refused and only the absolute test may fire. */
+const NEAR_EDGE = 0.06;
+const ABS_SLACK = 0.005;
+const MIN_RANGE = 0.02;
+
+/** The feed key for a bucket, or "" if it has not been linked to one.
+    Kept in `source` — the same field the pre-2026 version used — so the four
+    funds that still carry their scheme codes need no migration at all. */
+function priceKey(b) {
+  const s = (b && b.source) || {};
+  if (s.type === "mfapi" && s.schemeCode) return String(s.schemeCode);
+  if (s.type === "yahoo" && (s.symbol || "").trim()) return s.symbol.trim().toUpperCase();
+  return "";
+}
+
+/** The default feed for a kind. Indian funds are on mfapi (which is the only
+    free source that covers them at all); everything listed is on Yahoo. */
+const feedFor = kind => (kind === "mf" ? "mfapi" : "yahoo");
+
+/* ---- the editor's side of `source`: one text field, both feeds ----
+   The stored shape stays as it was ({type, schemeCode} / {type, symbol}) because
+   the workflow already reads it and the four funds already carry it. What the
+   editor shows is a single string, and srcParse decides what it meant. */
+
+const srcText = b => priceKey(b);
+
+/** Text from the field back into a source record, or null for "not tracked".
+    All digits is a scheme code; anything else is a ticker. An Indian listing gets
+    ".NS" appended when it has no suffix, because GOLDBEES on its own resolves to
+    nothing on Yahoo while GOLDBEES.NS is the NSE line — and a symbol that already
+    carries a dot is left exactly as typed, since .BO, .L and .DE are all real.
+
+    `name` is the fund name the picker confirmed, and it is carried only when it
+    belongs to the code in the field — retype the code by hand and the old name is
+    dropped rather than left attached to a different fund. The workflow ignores
+    this field entirely; it exists so the editor and the card can name the chosen
+    fund before any price has been fetched. */
+function srcParse(text, kind, name) {
+  const t = (text || "").trim();
+  if (!t) return null;
+  if (/^\d+$/.test(t)) {
+    const s = { type: "mfapi", schemeCode: Number(t) };
+    if ((name || "").trim()) s.schemeName = name.trim();
+    return s;
+  }
+  let sym = t.toUpperCase().replace(/\s+/g, "");
+  if (kind === "in_stock" && !sym.includes(".")) sym += ".NS";
+  return { type: "yahoo", symbol: sym };
+}
+
+/** What the feed said, or why there is nothing yet. This is the whole
+    verification story for a ticker: the browser cannot check one itself (Yahoo
+    sends no CORS header, which is why the workflow exists), so the only proof
+    that AAPL is Apple and not a typo that happens to resolve is the name the
+    fetch brought back. */
+function srcHint(b) {
+  const key = priceKey(b);
+  if (!key) return "Leave it empty and this bucket simply has no price row.";
+  const err = ((PRICES || {}).errors || {})[key];
+  if (err) return `The feed rejected <b>${esc(key)}</b>: ${esc(err)}`;
+  const entry = ((PRICES || {}).series || {})[key];
+  if (entry) return `✓ <b>${esc(entry.name)}</b> — that is what the last refresh actually fetched.`;
+  /* A picked fund can name itself here straight away; a typed ticker cannot, and
+     saying so is the honest version. Both end up at the same place once the
+     workflow has run, and then the line above replaces this one. */
+  const picked = ((b.source || {}).schemeName || "").trim();
+  if (picked) return `<b>${esc(picked)}</b>, confirmed against the fund list.
+    Its prices arrive on the next refresh.`;
+  return `Not fetched yet. The name it resolves to appears here after the next refresh —
+    that is how you catch a ticker that is real but not yours.`;
+}
+
+/** Everything the UI needs about one bucket's price, or null if it has no
+    series yet. Pure: same prices in, same object out, no rendering.
+
+    Returns { key, name, ccy, day, price, stale, spans[], best, ctx }
+    where `best` is the strongest true claim and `ctx` is always the longest
+    window available, because the two together are what stop `best` from lying —
+    see the comment on `best` below. */
+function priceView(b) {
+  const key = priceKey(b);
+  if (!key || !PRICES || !PRICES.series) return null;
+  const entry = PRICES.series[key];
+  if (!entry) return null;
+  const days = (PRICES.cal || {})[entry.cal] || [];
+  const closes = entry.c || [];
+
+  /* Nulls are days this instrument did not trade while another on the same
+     calendar did. Dropping them is what makes a fund holiday a gap rather than
+     a fake flat line through it. */
+  const pts = [];
+  for (let i = 0; i < days.length && i < closes.length; i++) {
+    if (closes[i] != null) pts.push({ d: days[i], c: closes[i] });
+  }
+  if (pts.length < 5) return null;
+
+  const last = pts[pts.length - 1];
+  const price = last.c;
+  const refMs = Date.parse(last.d + "T00:00:00Z");
+
+  const spans = [];
+  for (const w of PRICE_WINDOWS) {
+    const cut = new Date(refMs - w.days * 86400000).toISOString().slice(0, 10);
+    const win = pts.filter(p => p.d >= cut);
+    /* Under five points a "low" is an opinion about four numbers. A bucket
+       linked last week therefore shows nothing rather than something wrong. */
+    if (win.length < 5) continue;
+    let lo = Infinity, hi = -Infinity;
+    for (const p of win) { if (p.c < lo) lo = p.c; if (p.c > hi) hi = p.c; }
+    const range = hi - lo;
+    const wide = price > 0 && range / price >= MIN_RANGE;
+    const pos = range === 0 ? 0.5 : (price - lo) / range;
+    let dir = "";
+    if ((wide && pos <= NEAR_EDGE) || price <= lo * (1 + ABS_SLACK)) dir = "low";
+    else if ((wide && pos >= 1 - NEAR_EDGE) || price >= hi * (1 - ABS_SLACK)) dir = "high";
+    spans.push({ ...w, lo, hi, pos, wide, dir, n: win.length, from: win[0].d });
+  }
+  if (!spans.length) return null;
+
+  /* The longest qualifying window wins REGARDLESS of direction, and that last
+     part is the whole subtlety. Lows only nest downward: a 6-month low is
+     necessarily also a 1-month low, but a 1-month low says nothing about six
+     months. Picking "the longest low, else the longest high" therefore reports
+     "1-month low" for a fund sitting at 88% of its 12-month range — measured on
+     real data, three of four funds did exactly that — which reads as a bargain
+     and is nearly the opposite of true. Ranking every claim, both directions, by
+     window length puts the more significant fact first.
+
+     It still cannot make a short claim tell the whole story, so it is never
+     shown alone: `ctx` below is the position in the longest window, and that
+     percentage is printed beside the claim on every card. It used to also drive
+     the badge's colour, which is now the price direction instead (see
+     priceTone), so this sentence is the only thing left holding a
+     technically-true "1-month low" to its actual size. It is not optional. */
+  const claimed = spans.filter(s => s.dir);
+  const best = claimed.length ? claimed.reduce((a, s) => (s.days > a.days ? s : a)) : null;
+  const ctx = spans[spans.length - 1];
+
+  /* Prices go stale silently — a disabled workflow, a revoked token, a symbol
+     that started 404ing — and a stale low is worse than no low, so the age of
+     the newest close travels with the reading and the UI says so past a week. */
+  const ageDays = Math.floor((Date.now() - refMs) / 86400000);
+
+  return { key, name: entry.name || key, ccy: entry.ccy || "", feed: entry.feed || "",
+           day: last.d, price, ageDays, stale: ageDays > 7, spans, best, ctx, pts };
+}
+
+/** Which direction the price is in: "low" (red) or "high" (green).
+
+    ANY window at its low makes it red, not just the longest one — that is the
+    rule as asked for, and it is the cautious reading anyway. It matters because
+    the two directions can co-occur: a thing that has barely moved this month
+    while sitting at the top of its year can satisfy the 1-month low test and the
+    12-month high test at once, and in that case the low is the fact you would
+    want the graph to admit.
+
+    Green is therefore "no window is at its low", which includes plain mid-range.
+    A two-state signal has no neutral, so mid-range has to fall on one side;
+    green is the side that does not cry low. */
+function priceTone(v) {
+  if (!v || !v.spans) return "high";
+  return v.spans.some(s => s.dir === "low") ? "low" : "high";
+}
+
+/** A single-series line, as one static SVG.
+
+    Not a chart: no axes, no grid, no hover, no legend — a legend for one series
+    restates the label beside it, and a crosshair on 92px of width would be a
+    hit target you cannot hit. It is a shape that makes the badge's claim
+    visible, and every number it implies is written out next to it in text, so
+    nothing here is the only way to read a value. The full chart with labelled
+    extremes and a readout is one tap away in priceSheet().
+
+    All of it is static: one path, one circle, no transition, no filter. That is
+    what lets sixteen of these sit on a scrolling page — see the stylesheet
+    header on why anything that moves is the expensive thing. */
+function sparkline(pts, opts) {
+  const o = opts || {};
+  const w = o.w || 96, h = o.h || 32;
+  /* The end dot is r=4 with a 2px ring, so it needs 6px of room or it clips at
+     the top and bottom of the box — exactly where a series at its high or low
+     puts it, which is the case that matters most. */
+  const pad = 6;
+  if (!pts || pts.length < 2) return "";
+  let lo = Infinity, hi = -Infinity;
+  for (const p of pts) { if (p.c < lo) lo = p.c; if (p.c > hi) hi = p.c; }
+  const span = hi - lo || 1;
+  const innerW = w - pad * 2, innerH = h - pad * 2;
+  const x = i => pad + (pts.length === 1 ? innerW / 2 : innerW * i / (pts.length - 1));
+  const y = c => pad + innerH - ((c - lo) / span) * innerH;
+  /* One decimal on the coordinates: at this size the second decimal is a tenth
+     of a pixel and it is ~1.3 KB of path string per card. */
+  const d = pts.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.c).toFixed(1)).join("");
+  const lastX = x(pts.length - 1).toFixed(1), lastY = y(pts[pts.length - 1].c).toFixed(1);
+  /* No preserveAspectRatio: the viewBox and the width/height are the same numbers,
+     so this never scales and the stroke is 2 real pixels. It is why the text in
+     the detail sheet's chart is measured in JS instead — the same trick at modal
+     width would shrink 11px axis labels to 7px on a phone. */
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"
+    aria-hidden="true" focusable="false"
+    ><path class="sl" d="${d}"/><circle class="sd" cx="${lastX}" cy="${lastY}" r="4"/></svg>`;
+}
+
+/** Every nth point, keeping the first and always the last.
+
+    The card sparkline draws the SAME window the sentence beside it names, which
+    for a year is ~246 points — about 3 KB of path string per card, 48 KB across
+    sixteen, rebuilt on every render. Striding to 64 is invisible at 96px wide
+    (a 12-month line has one point every 1.4px there, so three out of four
+    coordinates land on a pixel already occupied) and keeps a render cheap. The
+    last point is forced back in because it is where the end dot goes, and the end
+    dot is the one point whose exact position the whole row is about. */
+function thin(pts, max) {
+  if (pts.length <= max) return pts;
+  const step = Math.ceil(pts.length / max);
+  const out = pts.filter((_, i) => i % step === 0);
+  if (out[out.length - 1] !== pts[pts.length - 1]) out.push(pts[pts.length - 1]);
+  return out;
+}
+
+/** The price block on a card: the claim, the shape, and the context that stops
+    the claim from being read as more than it is.
+
+    Silent when a bucket has no source, and silent when the feed has no series
+    for it yet. A row saying "no price data" on fifteen cards would be fifteen
+    lines of nothing, and the place to fix it is the editor, which says so. */
+function priceRow(b) {
+  const v = priceView(b);
+  if (!v) return "";
+  const tone = priceTone(v);
+  const claim = v.best ? `${v.best.label} ${v.best.dir}` : "mid-range";
+  /* The context sentence is always the longest window, and it is always shown,
+     including when it undercuts the badge beside it — especially then. */
+  const ctxPct = Math.round(v.ctx.pos * 100);
+  return `<button class="pricerow tone-${tone}" onclick="priceSheet('${b.id}')"
+      aria-label="${esc(v.name)}: ${claim}, ${ctxPct}% of its ${v.ctx.label} range. Open chart.">
+      <span class="pclaim">${claim}</span>
+      ${/* The longest window, the same one the sentence to the right measures
+            against — a graph showing a different span from the number printed
+            beside it is a chart that argues with its own caption. */
+        sparkline(thin(v.pts.filter(p => p.d >= v.ctx.from), 64))}
+      <span class="pctx">${ctxPct}% of ${v.ctx.label}${v.stale ? " · stale" : ""}</span>
+    </button>`;
+}
+
+/* ---------- the detail sheet ----------
+   One chart, one series, four windows selected by a toggle. The toggle lives in
+   here rather than on the card for the usual reason: a filter inside a chart card
+   on a dashboard leaves sixteen cards each showing a different slice of time, and
+   nothing on screen says so. In a sheet you opened about one instrument there is
+   only one chart for it to scope, and it is the question you came to ask. */
+
+/* Prices need two decimals, so money() cannot be used: fmt() rounds rupees to
+   whole numbers, which turns a NAV of 74.83 into ₹75 and a 0.2% move into
+   nothing. Grouping still follows the market's own convention — Indian lakhs
+   for INR, thousands for USD. */
+const PNUM = {};
+function pnum(n, ccy) {
+  const c = ccy === "USD" ? "USD" : ccy === "INR" ? "INR" : "";
+  if (!PNUM[c]) PNUM[c] = new Intl.NumberFormat(c === "INR" ? "en-IN" : "en-US",
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (c === "INR" ? "₹" : c === "USD" ? "$" : "") + PNUM[c].format(Number(n) || 0);
+}
+
+/* Drawn at the container's own pixel width, so nothing is scaled: a viewBox that
+   stretched to fit would take 11px axis text down to 7px on a 375px phone, which
+   is the sort of thing that looks fine in a screenshot at desktop width and is
+   unreadable on the device it is for. The cost is that the chart is sized once,
+   at draw time — a rotate mid-view leaves it at the old width until the toggle
+   redraws it, which is a fair trade for text that is always the size it says. */
+function drawSheetChart(host, v, spanKey) {
+  const span = v.spans.find(s => s.key === spanKey) || v.ctx;
+  const pts = v.pts.filter(p => p.d >= span.from);
+  if (pts.length < 2) { host.innerHTML = `<p class="muted">Not enough history for this window.</p>`; return; }
+
+  const w = Math.max(240, Math.round(host.clientWidth || 460));
+  const plotH = 150, axisH = 22, padT = 16;
+  const h = padT + plotH + axisH;
+  const padL = 2, padR = 2;
+  const innerW = w - padL - padR;
+
+  /* Scaled to the window's own low and high, with a small margin so the extremes
+     are not drawn on the frame. Never zero-based: the question is "where in its
+     recent range is this", and a ₹0 baseline squashes a year of a ₹250 fund into
+     the top inch of the box where no move is visible. */
+  const pad = (span.hi - span.lo) * 0.08 || (span.hi * 0.01) || 1;
+  const lo = span.lo - pad, hi = span.hi + pad;
+  const X = i => padL + (pts.length === 1 ? innerW / 2 : innerW * i / (pts.length - 1));
+  const Y = c => padT + plotH - ((c - lo) / (hi - lo)) * plotH;
+
+  const xs = pts.map((_, i) => X(i));
+  const ys = pts.map(p => Y(p.c));
+  const d = pts.map((p, i) => (i ? "L" : "M") + xs[i].toFixed(1) + " " + ys[i].toFixed(1)).join("");
+  const area = d + `L${xs[xs.length - 1].toFixed(1)} ${padT + plotH}L${xs[0].toFixed(1)} ${padT + plotH}Z`;
+
+  let iLo = 0, iHi = 0;
+  pts.forEach((p, i) => { if (p.c < pts[iLo].c) iLo = i; if (p.c > pts[iHi].c) iHi = i; });
+  const iEnd = pts.length - 1;
+
+  /* Three labels, not one per point: the two extremes and today. Everything else
+     is in the table below, which is the chart's WCAG-clean twin. The low and high
+     labels sit above their own gridline and are pulled back from either edge so
+     they cannot run out of the box. */
+  const clampX = (x, wide) => Math.min(Math.max(x, wide / 2 + 2), w - wide / 2 - 2);
+  /* Both labels sit ABOVE their own rule, including the low one. Below looked
+     tidier until it was rendered: the 8% scale margin puts the low rule about
+     12px off the plot floor, so a label under it lands in the x-axis band and
+     reads as a second line of dates. Above, it is 5px inside the plot at the far
+     left, where the series is nowhere near its minimum. */
+  const gridline = (c, cls, text) => {
+    const y = Y(c);
+    return `<line class="pgrid" x1="${padL}" y1="${y.toFixed(1)}" x2="${w - padR}" y2="${y.toFixed(1)}"/>
+      <text class="plab ${cls}" x="${padL + 2}" y="${(y - 5).toFixed(1)}">${text}</text>`;
+  };
+
+  /* Measured, not hoped for: the label is centred on the end dot and then pulled
+     back until its own box is inside the frame, so it is never clipped and never
+     needs overflow hidden to hide the fact. 6.4px per character is this face's
+     digit advance at 11px semibold. */
+  const endLabel = pnum(pts[iEnd].c, v.ccy);
+  const endX = clampX(xs[iEnd], endLabel.length * 6.4 + 8);
+
+  host.innerHTML = `
+    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
+      aria-label="${esc(v.name)}, ${span.label} price history: low ${pnum(span.lo, v.ccy)}, high ${pnum(span.hi, v.ccy)}, latest ${endLabel}. The same figures are in the table below.">
+      ${gridline(span.hi, "hi", pnum(span.hi, v.ccy) + " high")}
+      ${gridline(span.lo, "lo", pnum(span.lo, v.ccy) + " low")}
+      <path class="parea" d="${area}"/>
+      <path class="pline" d="${d}"/>
+      <g id="ch-live" hidden>
+        <line class="pchair" y1="${padT}" y2="${padT + plotH}"/>
+        <circle class="pdot" r="4"/>
+      </g>
+      <circle class="pdot" cx="${xs[iLo].toFixed(1)}" cy="${ys[iLo].toFixed(1)}" r="3.5"/>
+      <circle class="pdot" cx="${xs[iHi].toFixed(1)}" cy="${ys[iHi].toFixed(1)}" r="3.5"/>
+      <circle class="pdot" cx="${xs[iEnd].toFixed(1)}" cy="${ys[iEnd].toFixed(1)}" r="4.5"/>
+      <text class="pend" x="${endX.toFixed(1)}" y="${Math.max(11, ys[iEnd] - 10).toFixed(1)}"
+        text-anchor="middle">${endLabel}</text>
+      <text class="plab" x="${padL + 2}" y="${h - 6}">${dLabel(pts[0].d)}</text>
+      <text class="plab" x="${w - padR - 2}" y="${h - 6}" text-anchor="end">${dLabel(pts[iEnd].d)}</text>
+    </svg>
+    <div class="ptip" hidden></div>`;
+
+  // --- crosshair. Nearest point by x, so there is nothing to land on precisely.
+  const svg = host.querySelector("svg");
+  const live = host.querySelector("#ch-live");
+  const chair = live.querySelector("line");
+  const dot = live.querySelector("circle");
+  const tip = host.querySelector(".ptip");
+  /* The attribute, not the property. `el.hidden = false` is HTMLElement's, and
+     the crosshair group is an SVGElement — assigning to it there sets a plain JS
+     property, leaves the attribute in place, and [hidden]{display:none} keeps
+     winning. The tooltip is a div and would have worked either way; doing both
+     the same way is what stops that from being the difference nobody sees. */
+  const show = (el, on) => on ? el.removeAttribute("hidden") : el.setAttribute("hidden", "");
+  const move = e => {
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (w / r.width);
+    let i = 0, best = Infinity;
+    for (let k = 0; k < xs.length; k++) { const g = Math.abs(xs[k] - x); if (g < best) { best = g; i = k; } }
+    chair.setAttribute("x1", xs[i]); chair.setAttribute("x2", xs[i]);
+    dot.setAttribute("cx", xs[i]); dot.setAttribute("cy", ys[i]);
+    show(live, true);
+    tip.innerHTML = `<b>${pnum(pts[i].c, v.ccy)}</b> <span class="d">${dLabel(pts[i].d)}</span>`;
+    show(tip, true);
+    /* Positioned in CSS pixels off the box, not SVG units, and flipped near the
+       right edge so it never hangs outside the modal. */
+    const px = xs[i] * (r.width / w);
+    const tw = tip.offsetWidth;
+    tip.style.transform = `translate(${Math.min(Math.max(px - tw / 2, 0), r.width - tw)}px, ${
+      Math.max(0, ys[i] * (r.height / h) - tip.offsetHeight - 10)}px)`;
+  };
+  const leave = () => { show(live, false); show(tip, false); };
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerdown", move);
+  svg.addEventListener("pointerleave", leave);
+  svg.addEventListener("pointercancel", leave);
+}
+
+function priceSheet(id) {
+  const b = S.buckets.find(x => x.id === id);
+  const v = b && priceView(b);
+  if (!v) { toast("No prices for this one yet"); return; }
+  const tone = priceTone(v);
+  const claim = v.best ? `${v.best.label} ${v.best.dir}` : "mid-range";
+
+  /* The feed's own name for the instrument, first line, before anything else.
+     A mistyped ticker fetches somebody else's prices perfectly happily and every
+     number below would look completely plausible; the only defence is reading
+     back what the feed thinks you asked for. */
+  openModal(`
+    <h2>${esc(b.name)}</h2>
+    <div class="pshead">
+      <span class="psprice">${pnum(v.price, v.ccy)}</span>
+      <span class="pricerow tone-${tone}" style="width:auto;margin:0;padding:4px 10px;cursor:default">
+        <span class="pclaim">${claim}</span></span>
+    </div>
+    <p class="pssub">${esc(v.name)} · ${esc(v.key)} · close of ${dLabel(v.day)}${
+      v.stale ? ` · <b>${v.ageDays} days old</b>` : ""}</p>
+
+    <div class="psrow">
+      <div class="seg" id="ps-seg" role="group" aria-label="Window">
+        ${v.spans.map(s => `<button type="button" data-span="${s.key}"
+          aria-pressed="${s.key === v.ctx.key}">${s.key}</button>`).join("")}
+      </div>
+    </div>
+
+    ${/* One tone for the whole sheet, not one per selected window: the badge above
+          and the line below have to be the same colour or they read as two
+          different verdicts on one price. Which window caused it is in the table,
+          where the marked cell says so precisely. */""}
+    <div class="chartbox tone-${tone}" id="ps-chart"></div>
+
+    <table class="grid pspans">
+      <thead><tr><th>Window</th><th>Low</th><th>High</th><th>Position</th></tr></thead>
+      ${/* data-label on every cell but the first: under 640px the stylesheet drops
+            the thead and prints these instead, so a stacked row still says which
+            number is the low and which the high. */""}
+      <tbody>${v.spans.map(s => `<tr>
+        <td>${s.label}</td>
+        <td data-label="Low"  class="${s.dir === "low" ? "mark" : ""}">${pnum(s.lo, v.ccy)}</td>
+        <td data-label="High" class="${s.dir === "high" ? "mark" : ""}">${pnum(s.hi, v.ccy)}</td>
+        <td data-label="Position">${Math.round(s.pos * 100)}%${s.wide ? "" : " · flat"}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+    <p class="hint" style="margin-top:9px">Position is where today sits between that window's
+      low and high. A window whose whole range is under 2% is marked flat — being at the
+      "bottom" of a range that never moved is not a low.</p>
+
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Close</button>
+      <button class="btn primary" onclick="closeModal(); buyForm('${b.id}')">Record a buy</button>
+    </div>
+  `, m => {
+    const host = m.querySelector("#ps-chart");
+    draw(v.ctx.key);
+    function draw(key) {
+      m.querySelectorAll("#ps-seg [data-span]").forEach(el =>
+        el.setAttribute("aria-pressed", String(el.dataset.span === key)));
+      drawSheetChart(host, v, key);
+    }
+    m.querySelectorAll("#ps-seg [data-span]").forEach(btn => btn.onclick = () => draw(btn.dataset.span));
+  });
 }
 
 /* ============================================================
@@ -1773,6 +2477,8 @@ function renderDash() {
         ${L.lapsedTotal > 0 ? `<div><span>Lapsed</span> <b style="color:var(--danger-text)">${money(L.lapsedTotal, L.ccy)}</b></div>` : ""}
         ${L.advance > 0 ? `<div><span>Bought ahead</span> <b>${money(L.advance, L.ccy)}</b></div>` : ""}
       </div>` : ""}
+
+      ${priceRow(b)}
 
       <div class="card-actions">
         <button class="btn sm primary" onclick="buyForm('${b.id}')">Record buy</button>
@@ -2065,7 +2771,31 @@ function editBucket(id) {
       <label for="f-tracks">What it tracks <span class="muted">(optional)</span></label>
       <input id="f-tracks" value="${esc(b.tracks || "")}"
         placeholder="e.g. UTI Nifty 50 Index Fund">
-      <div class="hint">A label only — no prices are looked up.</div>
+      <div class="hint">Your own words, for the card. The price feed is the field below.</div>
+    </div>
+
+    <!-- One field for both kinds, and no onchange on Type, so this form still
+         never rearranges itself under you: what you type decides how it is read.
+         All digits is a fund scheme code, anything else is a ticker.
+
+         Both lookup buttons are always shown for the same reason. Hiding one
+         behind the Type select would mean the form changed shape while you were
+         filling it in, and the wrong one showing is harmless — it just finds
+         nothing. -->
+    <div class="field">
+      <label for="f-src">Price feed <span class="muted">(optional)</span></label>
+      <div class="customrow two">
+        <input id="f-src" value="${esc(srcText(b))}" placeholder="e.g. AAPL, GOLDBEES.NS, or 120620">
+        <button class="btn" id="f-src-find" type="button">Find fund</button>
+        <button class="btn" id="f-src-look" type="button" title="Search Yahoo Finance in a new tab">Find ticker ↗</button>
+      </div>
+      <!-- The chosen fund's own name, so a bucket that was linked five minutes
+           ago can still say WHICH fund it linked to, before any workflow has run.
+           Hidden rather than shown twice: the hint below is where it is read. -->
+      <input type="hidden" id="f-src-name" value="${esc(((b.source || {}).schemeName) || "")}"
+        data-code="${esc(String(((b.source || {}).schemeCode) || ""))}">
+      <div class="hint" id="f-src-hint">${srcHint(b)}</div>
+      <div id="f-src-res"></div>
     </div>
 
     <div class="field">
@@ -2120,6 +2850,126 @@ function editBucket(id) {
       syncCcy();
     });
 
+    /* --- fund lookup. mfapi is the one feed a browser is allowed to call
+       directly (it sends Access-Control-Allow-Origin: *), so searching for a
+       fund by name can happen right here instead of waiting on a workflow run.
+       There is deliberately no equivalent for tickers: Yahoo sends no CORS
+       header at all, so a symbol cannot be checked from the page — it is checked
+       by the name that comes back with its prices.
+
+       The query is whatever is already in Name or What it tracks. A search box
+       of its own would be a third field to fill in to search for the thing you
+       just named. */
+    const res = () => $("#f-src-res");
+    const seed = () => ($("#f-tracks").value.trim() || $("#f-name").value.trim());
+
+    /* Every search runs against whatever is in the panel's own box, which starts
+       from Name/What it tracks and is then editable in place. That editability is
+       the point: "icici nifty 50" matches about thirty rows, because mfapi lists
+       every plan and every option of every plan separately, and the difference
+       between the right one and the wrong one is the words "Direct" and "Growth"
+       at the end of an eighty-character name. Refining had to be possible without
+       going back and rewriting the bucket's own name. */
+    let hits = [];
+    const drawFind = (q, msg) => {
+      const only = m.querySelector("#f-src-only");
+      const direct = !only || only.checked;
+      const shown = (direct ? hits.filter(f => /direct/i.test(f.schemeName) && !/idcw|dividend/i.test(f.schemeName)) : hits);
+      res().innerHTML = `
+        <div class="srcfind">
+          <div class="customrow">
+            <input id="f-src-q" value="${esc(q)}" placeholder="Fund name" autocomplete="off">
+            <button class="btn" id="f-src-go" type="button">Search</button>
+          </div>
+          ${/* "Direct plan" and "not IDCW" is exactly what the filter does, so it
+                is exactly what the label says. It deliberately does not say
+                "growth": ICICI's own direct plan for the Nifty 50 is named
+                "- Cumulative", which means the same thing, and a filter that
+                required the word "Growth" would hide the correct fund. */""}
+          <label class="srconly"><input type="checkbox" id="f-src-only" ${direct ? "checked" : ""}>
+            Direct plans only, no IDCW</label>
+          ${msg ? `<div class="hint">${msg}</div>` : ""}
+          ${shown.length ? `<div class="srcres">${shown.slice(0, 12).map(f =>
+            `<button type="button" class="srcpick" data-code="${f.schemeCode}">
+               <b>${esc(f.schemeName)}</b><span>${f.schemeCode}</span></button>`).join("")}${
+            shown.length > 12 ? `<div class="hint">${shown.length - 12} more — add words to narrow it.</div>` : ""}</div>`
+            : hits.length ? `<div class="hint">Nothing left after filtering. Untick the box to see all
+              ${hits.length} matches.</div>` : ""}
+        </div>`;
+      $("#f-src-go").onclick = () => run($("#f-src-q").value.trim());
+      $("#f-src-q").onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); $("#f-src-go").click(); } };
+      $("#f-src-only").onchange = () => drawFind($("#f-src-q").value, msg);
+      res().querySelectorAll(".srcpick").forEach(btn => btn.onclick = () => pick(btn.dataset.code, btn.querySelector("b").textContent));
+    };
+
+    /* Picking writes the code, and then immediately asks mfapi what that code
+       actually is. It is one extra request and it is the only step in the whole
+       chain that proves the link before the workflow runs — the scheme name in
+       the list and the scheme name behind the code come from the same API, but
+       reading it back with today's NAV attached is what turns "I clicked the row
+       I meant to" into "this code returns this fund". */
+    async function pick(code, listName) {
+      $("#f-src").value = code;
+      $("#f-src-name").value = listName;
+      $("#f-src-name").dataset.code = String(code);
+      res().innerHTML = "";
+      $("#f-src-hint").innerHTML = `Selected <b>${esc(listName)}</b> — confirming…`;
+      try {
+        const r = await fetch("https://api.mfapi.in/mf/" + encodeURIComponent(code) + "/latest", { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
+        const meta = j.meta || {}, row = (j.data || [])[0] || {};
+        const name = meta.scheme_name || listName;
+        $("#f-src-name").value = name;
+        $("#f-src-hint").innerHTML = `✓ <b>${esc(name)}</b>${
+          meta.fund_house ? ` · ${esc(meta.fund_house)}` : ""}${
+          /* mfapi returns "251.74100"; five decimals on a NAV is noise here and
+             makes the confirmation line look like debug output. */
+          row.nav ? ` · NAV ₹${(Number(row.nav) || 0).toFixed(2)} on ${esc(row.date || "")}` : ""}.
+          That is the fund whose graph this bucket will show.`;
+      } catch (e) {
+        $("#f-src-hint").innerHTML = `Selected <b>${esc(listName)}</b>, but the confirming call failed
+          (${esc(String(e.message || e))}). The code is saved; the name the feed returns will show up here
+          after the next price refresh.`;
+      }
+    }
+
+    async function run(q) {
+      if (!q) { toast("Type a name to search for"); return; }
+      hits = [];
+      drawFind(q, "Searching…");
+      try {
+        const r = await fetch("https://api.mfapi.in/mf/search?q=" + encodeURIComponent(q), { cache: "no-store" });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        hits = (await r.json()) || [];
+        drawFind(q, hits.length ? `${hits.length} match${hits.length === 1 ? "" : "es"} for “${esc(q)}”.`
+                                : `No fund matched “${esc(q)}”. Try fewer words — “icici nifty 50”, not the full plan name.`);
+      } catch (e) {
+        hits = [];
+        drawFind(q, `Could not reach the fund list (${esc(String(e.message || e))}).
+          You can paste the scheme code straight into the field above.`);
+      }
+    }
+
+    $("#f-src-find").onclick = () => run(seed());
+
+    /* Tickers cannot be searched from here — Yahoo sends no CORS header, which is
+       the whole reason the workflow exists — so this hands the job to Yahoo's own
+       lookup page in a new tab, where the symbol is displayed next to the company
+       name and the exchange. You copy it back into the field.
+       It does send the bucket's name to Yahoo, which is why it is a button you
+       press and not something that happens as you type. */
+    $("#f-src-look").onclick = () => {
+      const q = seed();
+      if (!q) { toast("Type a name first"); $("#f-name").focus(); return; }
+      window.open("https://finance.yahoo.com/lookup/?s=" + encodeURIComponent(q), "_blank", "noopener");
+      res().innerHTML = `<div class="hint" style="margin-top:7px">Yahoo opened in a new tab. Copy the
+        symbol from the <b>Symbol</b> column into the field above — including its suffix
+        (<b>.NS</b> for NSE, <b>.BO</b> for BSE, nothing for US listings). Nothing here can check it
+        for you, so the name that comes back with the prices is the check: it appears in this
+        hint after the next refresh, and under the price in the chart.</div>`;
+    };
+
     // --- allocation rows
     const readAllocs = () => Array.from(m.querySelectorAll("#alloc-list .allocrow")).map(r => ({
       from: r.querySelector("[data-af]").value || thisMonth(),
@@ -2157,6 +3007,18 @@ function editBucket(id) {
         openingPending: Number($("#f-open").value) || 0,
         allocations: allocs,
         tracks: $("#f-tracks").value.trim(),
+        /* Read against the kind chosen on this form, not the stored one, so
+           switching a bucket to "Indian stock" and typing GOLDBEES in the same
+           edit still lands on GOLDBEES.NS. Cleared to {} rather than deleted so
+           an emptied field actually unlinks the feed — Object.assign over `b`
+           below would otherwise keep the old source forever. */
+        /* The confirmed name travels only while it still belongs to the code in
+           the field. Typing a different code over a picked one must not inherit
+           the previous fund's name: that would put a reassuring, wrong name on
+           the card, which is the exact failure this whole field exists to stop. */
+        source: srcParse($("#f-src").value, kind,
+          $("#f-src-name").dataset.code === $("#f-src").value.trim()
+            ? $("#f-src-name").value : "") || {},
         // carried through, not edited and not dropped — see the note on KINDS
         members: b.members || [],
         note: b.note || ""
@@ -2524,6 +3386,53 @@ async function ghPut(c, text, sha, message) {
   return { ok: true, sha: j.content && j.content.sha };
 }
 
+/* ---------- prices.json, the read-only sibling ---------- */
+
+/* Same repo, same branch, same token, one directory along: whatever you called
+   the plan file, prices.json sits beside it. Derived from c.path rather than
+   configured separately because a second path to keep in step is a second thing
+   to get wrong, and there is no case where you would want them apart. */
+function pricesURL(c) {
+  const parts = c.path.split("/").filter(Boolean);
+  parts[parts.length - 1] = "prices.json";
+  return "https://api.github.com/repos/"
+    + encodeURIComponent(c.owner) + "/" + encodeURIComponent(c.repo)
+    + "/contents/" + parts.map(encodeURIComponent).join("/");
+}
+
+/* `vnd.github.raw` instead of the `+json` the plan file uses, because this file
+   is read and never written. The JSON form wraps the content in base64, which
+   costs a third of the bytes on a file measured at ~44 KB for sixteen
+   instruments, and buys a sha this app has no use for — it never PUTs prices,
+   so it never needs a conflict guard. */
+async function pullPrices(quiet) {
+  const c = syncCfg();
+  if (!c) return { ok: false };
+  try {
+    const r = await fetch(pricesURL(c) + "?ref=" + encodeURIComponent(c.branch || "main"), {
+      headers: { ...ghHeaders(c), "Accept": "application/vnd.github.raw" },
+      cache: "no-store"
+    });
+    /* A missing file is the normal state until the workflow has run once, so it
+       is reported as "not set up yet" rather than as an error. */
+    if (r.status === 404) return { ok: false, missing: true };
+    if (!r.ok) return { ok: false, status: r.status, msg: await ghMsg(r) };
+    const data = JSON.parse(await r.text());
+    if (!data || !data.series || !data.cal) throw new Error("not a prices file");
+    PRICES = data;
+    lsPut(PRICES_KEY, PRICES);
+    renderAll();
+    return { ok: true };
+  } catch (e) {
+    /* Deliberately soft. Prices are an extra on top of a plan that works
+       without them, so a feed problem must never block a pull, break a render,
+       or throw where the caller is mid-save. The stale copy already on screen
+       stays on screen. */
+    if (!quiet) toast("Could not refresh prices");
+    return { ok: false, msg: String(e.message || e) };
+  }
+}
+
 async function ghMsg(r) {
   let m = "";
   try { m = (await r.json()).message || ""; } catch (e) {}
@@ -2863,8 +3772,18 @@ refreshBtn.onclick = async () => {
   if (!syncCfg()) { syncPanel(); return; }
   if (localChanged() && !confirm("This device has changes the cloud has not seen. Refreshing replaces them with the cloud copy. Continue?")) return;
   refreshBtn.classList.add("spin");
-  try { await pullNow(false); }
-  finally { refreshBtn.classList.remove("spin"); }
+  /* Prices come along, in parallel, and the rows already on screen are dimmed
+     rather than replaced by skeletons: the numbers showing are still the numbers,
+     they are just a few minutes old, and blanking sixteen of them moves every
+     button underneath. If the price leg fails the old rows simply come back at
+     full opacity — pullPrices resolves either way and is never allowed to reject,
+     so it cannot take the data pull down with it. */
+  document.body.classList.add("prices-busy");
+  try { await Promise.all([pullNow(false), pullPrices(true)]); }
+  finally {
+    refreshBtn.classList.remove("spin");
+    document.body.classList.remove("prices-busy");
+  }
 };
 
 /* One menu at every width, so this needs no resize handler and no second layout
@@ -2908,13 +3827,20 @@ window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); 
 // the autosave is debounced, so make sure a pending write lands on the way out
 window.addEventListener("pagehide", flushSave);
 
-/* No resize handler. There used to be one: the charts were sized from
-   clientWidth in JS, so the dashboard had to re-render on every resize. With
-   the charts gone, nothing on the page has a width JS knows about — the cards
-   are a CSS grid and reflow by themselves. Dropping it also means rotating a
-   phone no longer rebuilds every card. */
+/* No resize handler. There used to be one: the dashboard's charts were sized from
+   clientWidth in JS, so every resize re-rendered every card. Nothing on the page
+   needs that now — the cards are a CSS grid and reflow by themselves, and the
+   sparklines are drawn in a fixed 96×32 box. The one thing JS does measure is the
+   detail sheet's chart, and that is one element inside one open modal: it redraws
+   on the window toggle, and a resize while it is open leaves it at the old width,
+   which is worth not rebuilding sixteen cards for. */
 
 loadAutosave();
+/* Prices before the first render, so a returning device draws its sparklines from
+   the cache immediately instead of flashing cards without them and then adding a
+   row a second later, which moves every button below it. Failing to parse is
+   fine: it is a cache, and pullPrices refills it. */
+try { PRICES = lsGet(PRICES_KEY, null); } catch (e) { PRICES = null; }
 renderAll();
 
 /* Pull on open, so the phone shows what the desktop entered. Deliberately only
@@ -2941,6 +3867,14 @@ if (syncCfg()) {
       toast("Updated from cloud");
     } catch (e) { setSyncBadge("warn", "Could not reach GitHub"); }
   })();
+
+  /* Prices are pulled separately and never gated on the data pull above. They are
+     a different file, written by a different author (the workflow, not this app),
+     and they carry no conflict: nothing here ever writes prices back, so there is
+     no unsynced-changes case to protect and no reason to make the sparklines wait
+     for a data pull that might be asking you a question. Quiet on failure for the
+     same reason as everything else on this path. */
+  pullPrices(true);
 }
 </script>
 </body>
