@@ -83,8 +83,11 @@
      ============================================================ */
   :root {
     color-scheme: light;
-    --page:          #fbf5fd;
-    --page-2:        #f5e7fb;
+    /* nudged from #fbf5fd / #f5e7fb toward the rose end on 2026-09-11, so the two
+       themes are the same palette at two luminances rather than a plum dark theme
+       beside a lilac light one */
+    --page:          #fcf6fb;
+    --page-2:        #f6e8f5;
     /* the opaque reference surface every ratio below is quoted against */
     --surface-solid: #fefcff;
     /* Opaque, not 0.97/0.92 alpha. These are the colours that alpha already
@@ -121,9 +124,16 @@
        not --accent-deep itself: :hover opens to color-mix(--accent-deep 62%,
        --accent), lighter than anything in the resting state. White measures
        5.23:1 there, 5.62 on the resting top stop, 6.64 on the solid. */
-    --accent:        #e24bb4;   /* bright purplish pink */
-    --accent-deep:   #a3208f;   /* the fill under white text */
-    --accent-2:      #a855f7;   /* violet — chrome gradients and glow only */
+    --accent:        #e0479f;   /* bright rose-magenta */
+    --accent-deep:   #a3208f;   /* the fill under white text — unchanged, and
+                                   re-measured against the new --accent: white on
+                                   the hover stop is 5.32:1, up from 5.23 */
+    --accent-2:      #9b5cff;   /* violet — chrome gradients and glow only. Held
+                                   more violet than the dark theme's #7c5cff on
+                                   purpose: indigo on white lands ΔE 11.9 from the
+                                   link blue, and a link that looks like chrome is
+                                   the one confusion this file has always avoided.
+                                   At #9b5cff the pair separates by 16.1. */
     --st-good:       #0ca30c;
     --st-warning:    #fab219;
     --st-serious:    #e2622f;   /* deepened from #ec835a: the ladder now reads
@@ -184,7 +194,7 @@
     --frost-a: rgba(255,255,255,0.66);
     --frost-b: rgba(255,255,255,0.52);
     --refract-1: rgba(255,105,205,0.16);
-    --refract-2: rgba(185,120,255,0.15);
+    --refract-2: rgba(160,110,255,0.15);
     /* The scrolling grid's own frost — the same idea as --frost-* but denser,
        because a card carries 12px muted text over whatever the wash happens to
        be doing beneath it while the hero carries a 52px figure. High enough to
@@ -236,44 +246,71 @@
   :root[data-theme="dark"] {
     color-scheme: dark;
     /* near-black, because a luminous ribbon needs somewhere dark to be
-       luminous against — #0b0713 was already washing the colour out */
-    --page:          #08050d;
-    --page-2:        #170a1e;
-    --surface-solid: #1f1424;
+       luminous against — #0b0713 was already washing the colour out. Lifted
+       again on 2026-09-11 from #08050d to a plum near-black: at pure #08050d the
+       page read as a hole the cards floated over, and the two dark greys the
+       cards are made of had no family to belong to. This is still dark enough
+       for the ribbon (L* 5.5) and now visibly the same material. */
+    --page:          #0e0b14;
+    --page-2:        #191026;
+    --surface-solid: #171022;
     /* Opaque, but lifted and pushed violet now that the page behind them is
        near-black: on #08050d a neutral grey read as dead. These are the
        colours a thin frost would blend to over the ribbon's dim end, so the
        cards look like the same material as the hero even where they are opaque. */
-    --surface-1:     #271a2e;
-    --surface-1b:    #1a0f20;
+    --surface-1:     #2c1e3c;
+    --surface-1b:    #160e20;
     --inset:         rgba(0,0,0,0.34);
 
-    --text-primary:  #ffffff;
-    --text-secondary:#d6ccdc;
+    /* Not pure white. #ffffff over a violet-black surface is the one value that
+       cannot belong to the palette — it is the absence of the theme — and at
+       24px it buzzes against the plum behind it. A hair of the page's own hue in
+       the ink is what makes large type sit ON the surface rather than in front
+       of it, and it costs 0.4:1 of contrast out of a budget of sixteen. */
+    --text-primary:  #f8f4fb;
+    --text-secondary:#cdc3d9;
     /* lifted TWICE: once for small-text contrast on a solid surface, and again
        on 2026-08-30 when the grid went translucent. 12px muted text over a
        card is now read against the card COMPOSITED over the wash, which is
        lighter than --surface-solid wherever the wash is bright — it measured
-       3.37:1 at #b1a2a4 and 4.7:1 here, worst card in the grid. */
-    --text-muted:    #c3b8c9;
-    --gridline:      #332639;
-    --baseline:      #4d3c56;
-    --border:        rgba(255,255,255,0.11);
+       3.37:1 at #b1a2a4 and 4.7:1 here, worst card in the grid. Re-pitched to
+       the plum surfaces on 2026-09-11 and kept at that lightness, not dropped to
+       the sample's #a294b0 — the sample had no translucent card over a bright
+       wash to survive, and this file does. */
+    --text-muted:    #cabfd4;
+    --gridline:      #2b1f38;
+    --baseline:      #493a5e;
+    --border:        rgba(255,255,255,0.10);
 
     --series-1:      #7aa2ff;   /* 7.1:1 on --surface-solid (measured) */
-    --accent:        #ff5cd0;   /* hot pink — glow and rims only */
+    /* Rose-magenta, one step warmer than the old #ff5cd0. It is deliberately NOT
+       the sample's rose #ff6ea9, and that was measured rather than argued: a rose
+       accent separates from ANY usable red by ΔE 10-12 to normal vision, well
+       under the 15 floor, so the chrome and the "1-month low" ink would have been
+       the same colour to everyone rather than only to the colourblind. The accent
+       keeps the magenta end of the family and the red keeps the red end. */
+    --accent:        #ff57cc;   /* rose-magenta — glow and rims only */
     --accent-deep:   #9c1f86;   /* white text at the lightest stop of the
                                    gradient built on it — measured below */
-    --accent-2:      #b477ff;
-    --danger-text:   #ff5f5f;   /* 5.8:1 on --surface-solid */
+    /* Indigo-violet rather than the old lavender #b477ff: against a plum page a
+       lavender is the page one shade lighter, so the gradients built on it had no
+       second hue in them at all. This one is far enough round to read as a
+       different colour and still nowhere near the link blue. Decoration only —
+       the logo mark, the ambient blooms, the glows — so nothing is read on top of
+       it and its 2.99:1 against white never mattered. */
+    --accent-2:      #7c5cff;
+    --danger-text:   #fc5a5e;   /* 5.97:1 on --surface-solid */
     /* Lightened rather than darkened, the opposite direction to the light theme —
        measured 5.93:1 against the LIGHTEST stop of the button's own gradient
        (39,26,46), not against --surface-solid, which flatters it to 6.38. */
     --warn-text:     #f07a3a;   /* 5.93:1 worst case on a .btn face */
     /* Its own step, not a lightened copy of the light theme's: --danger-text is
-       much lighter here (#ff5f5f), so the green had to move UP in lightness too
-       to keep the pair apart under CVD. Measured 8.1 ΔE protan, 5.62:1 as text. */
-    --ok-text:       #26a566;
+       much lighter here (#fc5a5e), so the green had to move UP in lightness too
+       to keep the pair apart under CVD. Mint rather than the old forest #26a566,
+       which was the darkest thing on a dark card and read as "off" rather than as
+       a rise. Measured against the new red: 9.2 ΔE deutan (target 8), 10.48:1 as
+       text on --surface-solid. */
+    --ok-text:       #3ddc97;
     /* controls sunk INTO glass read as darker wells, not lighter ones — the
        inner pill in the reference is darker than the panel around it */
     --ghost:         rgba(8,3,12,0.32);
@@ -303,16 +340,24 @@
        against --surface-solid, which is what the old audit did and why this
        was missed) put the 11.5px "WAITING TO BE INVESTED" label at 3.6:1.
        It is 4.6:1 here and the panel is still visibly a thin pane. */
-    --frost-a: rgba(66,34,80,0.64);
-    --frost-b: rgba(26,11,32,0.76);
+    --frost-a: rgba(64,42,88,0.64);
+    --frost-b: rgba(24,14,36,0.78);
     --refract-1: rgba(255,80,200,0.22);
-    --refract-2: rgba(180,110,255,0.24);
-    --card-a: rgba(56,37,66,0.76);
-    --card-b: rgba(29,18,36,0.83);
+    /* follows --accent-2 round to indigo, or the refraction inside the glass
+       would still be the old lavender and the panels would read as two eras */
+    --refract-2: rgba(140,100,255,0.26);
+    --card-a: rgba(52,35,72,0.76);
+    --card-b: rgba(26,16,38,0.84);
     --refract-card: rgba(240,130,230,0.15);
     --inner-edge: rgba(246,230,255,0.26);
     --dim: rgba(6,2,10,0.80);
-    --ribbon-op: 1;
+    /* Down from 1 on 2026-09-11. At full strength the band's pale end reached
+       near-white pink across the top strip, which was fine over a black page and
+       is too much over a plum one — the page is lighter now, so the same ribbon
+       has less room above it before it blows out. This keeps the band clearly lit
+       and stops it becoming the brightest thing on screen, which the hero figure
+       should be. */
+    --ribbon-op: 0.84;
   }
 
   * { box-sizing: border-box; }
@@ -769,37 +814,22 @@
       0 0 16px -6px color-mix(in oklab, var(--accent-2) calc(var(--glow) * 100%), transparent);
   }
 
-  /* ---------- dashboard groups ----------
-     A heading and a rule, not another glass panel: the cards inside already have
-     their own surface, and nesting one in another gives every card two frames.
-     The summary is the whole hit target — 34px of it — because on a phone the
-     triangle alone is not a thumb target. */
-  .group { margin-bottom: 20px; }
-  .group:last-child { margin-bottom: 0; }
-  .group > summary {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px;
-    cursor: pointer; padding: 5px 2px 11px;
-    border-bottom: 1px solid var(--gridline); margin-bottom: 14px;
-    list-style: none;                             /* Firefox's own marker */
+  /* ---------- the ranked list ----------
+     One line of prose instead of three category headings. The order is the whole
+     point of the screen now, so it has to say what the order means — otherwise a
+     flat list of sixteen cards reads as no order at all. */
+  .ranknote { margin: -2px 0 15px; font-size: 12.5px; color: var(--text-muted); max-width: 88ch; }
+  /* A labelled rule, not a heading: what is under it is the cards with nothing
+     waiting, and the divider exists to be scrolled past. */
+  .listrule {
+    display: flex; align-items: baseline; gap: 9px;
+    margin: 26px 0 14px; padding: 5px 2px 11px;
+    border-bottom: 1px solid var(--gridline);
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
   }
-  .group > summary::-webkit-details-marker { display: none; }
-  /* Own chevron rather than the native marker, which cannot be rotated and sits
-     off the cap height. Transform only, so opening a section repaints the text
-     and nothing under it. */
-  .group > summary::before {
-    content: "›"; font-size: 17px; line-height: 1; color: var(--text-muted);
-    transition: transform .16s ease, color .15s ease;
-  }
-  .group[open] > summary::before { transform: rotate(90deg); }
-  .group > summary:hover::before { color: var(--text-secondary); }
-  .group .gnm { font-weight: 600; font-size: 14.5px; letter-spacing: -0.01em; }
-  .group .gct {
-    font-size: 11.5px; padding: 1px 7px; border-radius: 999px;
+  .listrule .ct {
+    font-size: 11.5px; font-weight: 500; padding: 1px 7px; border-radius: 999px;
     background: var(--ghost); border: 1px solid var(--border); color: var(--text-muted);
-  }
-  .group .gtot {
-    margin-left: auto; font-size: 12.5px; color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
   }
 
   /* ---------- cards ---------- */
@@ -818,6 +848,18 @@
     box-shadow: inset 0 1px 0 var(--lip), inset 0 -1px 0 var(--lip-low),
                 inset 0 0 30px -13px var(--inner-edge), var(--sh-lg);
   }
+  /* The top picks are marked by re-tinting two tokens the glass already paints —
+     its rim and its corner refraction — so the highlight costs no extra layer and
+     no filter. Deliberately NOT a different background: a card with its own
+     surface reads as a different KIND of card, not as a higher rank. */
+  .card.pick {
+    --rim: linear-gradient(148deg,
+             color-mix(in oklab, var(--accent) 82%, transparent) 0%,
+             color-mix(in oklab, var(--accent) 34%, transparent) 32%,
+             rgba(255,255,255,0.05) 62%,
+             color-mix(in oklab, var(--accent) 50%, transparent) 100%);
+    --refract-card: color-mix(in oklab, var(--accent) 28%, transparent);
+  }
 
   .card-head { display: flex; align-items: flex-start; gap: 10px; }
   .card-head .nm { font-weight: 600; font-size: 15px; letter-spacing: -0.01em; }
@@ -826,6 +868,16 @@
     font-size: 11.5px; padding: 2px 8px; border-radius: 999px;
     background: var(--ghost); border: 1px solid var(--border);
     color: var(--text-secondary); white-space: nowrap;
+  }
+  /* The type badge rides the amount line rather than the name line: the name line
+     already ends in a status pill, and at 370px a third thing there wraps. */
+  .card-head .sub .chip { font-size: 11px; padding: 1px 7px; margin-left: 3px; }
+  .card-head .sub .tag {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .045em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 999px; margin-left: 4px; white-space: nowrap;
+    color: var(--text-primary);
+    background: color-mix(in oklab, var(--accent) 20%, var(--surface-solid));
+    border: 1px solid color-mix(in oklab, var(--accent) 46%, var(--surface-solid));
   }
   /* status: icon + label always — colour never carries it alone */
   .status {
@@ -1869,6 +1921,48 @@ function statusOf(L) {
 
 const RANK = { cap: 0, act: 1, due: 2, clear: 3, idle: 4 };
 
+/* ---------- what to buy next ----------
+   The dashboard used to sort by urgency and then split the result into three
+   category sections, which answered "what is late" but never "what should I buy
+   today" — the price was printed on the card and ranking it was left to the
+   reader. One number does that now, and it is deliberately NOT a blend of equals:
+   the money picks the tier, and the price can only reorder buckets inside one. So
+   a fund at its 12-month low outranks an equally-behind fund sitting at its high,
+   and never outranks a fund whose oldest month is about to lapse.
+
+   A bucket with nothing pending scores nothing at all. A good price on a bucket
+   that owes no money is not something to act on, and letting it rank would put a
+   fully-deployed fund above one that is three months behind. */
+const BUY_TIER = { cap: 300, act: 200, due: 100 };
+
+function buyScore(b, L) {
+  const st = statusOf(L);
+  const tier = BUY_TIER[st.key] || 0;
+  if (!tier) return { ranked: false, score: -1, st };
+
+  /* How deep the backlog is, capped at six months: the difference between one and
+     three unbought months matters, between nine and twelve it does not. Worth at
+     most 40 — well under the 100 that separates two tiers — so one month of
+     backlog is worth about 6.7. */
+  const depth = Math.min(L.openMonths, 6) / 6 * 40;
+
+  /* Where the price sits inside its longest window — 0 at the low, 1 at the high
+     — plus a flat kick for any window sitting at its low, which is the same fact
+     the card's badge reports. Worth at most 10, i.e. a month and a half of
+     backlog: that is "breaks a tie and can lift a bucket one place", which is
+     what the price deserves. Scoring it any higher (the first draft gave it 60)
+     put a three-month-behind fund at its low above a dozen buckets five months
+     behind — the price had quietly become the main sort. A stale feed scores zero
+     rather than guessing, because a fortnight-old price is not a dip. */
+  const v = priceView(b);
+  let dip = 0;
+  if (v && !v.stale && v.ctx && Number.isFinite(v.ctx.pos)) {
+    dip = (1 - Math.min(1, Math.max(0, v.ctx.pos))) * 7 + (priceTone(v) === "low" ? 3 : 0);
+  }
+
+  return { ranked: true, score: tier + depth + dip, st, dip };
+}
+
 /* Three categories, in the order the dashboard stacks them. They are also the
    only three: "Group of holdings" is gone, and with it the editable member list
    that was its whole reason for existing — a fourth category that only enabled a
@@ -1895,6 +1989,9 @@ const ICON_PENCIL = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none"
   ><path d="M16.8 3.2a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5 13.3-13.3z"/></svg>`;
 
 const KINDS = { mf: "Mutual Funds", in_stock: "Indian Stocks", us_stock: "US Stocks" };
+/* Singular, for the badge on a single card: a card is one holding, and "Mutual
+   Funds" on it reads as a group heading that lost its group. */
+const KIND_TAG = { mf: "Fund", in_stock: "Indian stock", us_stock: "US stock" };
 const KIND_ORDER = ["mf", "in_stock", "us_stock"];
 const kindOf = b => {
   if (KINDS[b.kind]) return b.kind;
@@ -2065,7 +2162,14 @@ function priceView(b) {
     let dir = "";
     if ((wide && pos <= NEAR_EDGE) || price <= lo * (1 + ABS_SLACK)) dir = "low";
     else if ((wide && pos >= 1 - NEAR_EDGE) || price >= hi * (1 - ABS_SLACK)) dir = "high";
-    spans.push({ ...w, lo, hi, pos, wide, dir, n: win.length, from: win[0].d });
+    /* Net change across the window, which is a different question from `dir`
+       above: `dir` asks where the price sits relative to its extremes, `net`
+       asks which way it travelled to get there. A fund can be 41% of the way up
+       its year's range — nowhere near the low — while still being down 3% over
+       that year, and the second fact is the one a falling line on screen is
+       showing. The sheet's chart is coloured by this; the cards are not. */
+    const net = win[0].c ? (price - win[0].c) / win[0].c : 0;
+    spans.push({ ...w, lo, hi, pos, wide, dir, net, n: win.length, from: win[0].d });
   }
   if (!spans.length) return null;
 
@@ -2113,6 +2217,30 @@ function priceTone(v) {
   if (!v || !v.spans) return "high";
   return v.spans.some(s => s.dir === "low") ? "low" : "high";
 }
+
+/* A move smaller than half a percent over the whole window is not a fall, it is
+   the same price with a different closing print. Without a deadband a 6-month
+   line that ended 0.34% below where it started would be painted red, which is a
+   verdict on noise. */
+const FLAT_NET = 0.005;
+
+/** The tone of ONE window, and by a different rule from priceTone above: red
+    when the line ENDS BELOW WHERE IT STARTED, green when it ends above or flat.
+
+    priceTone asks where the price sits between its extremes, which is what a
+    card needs — a card has no toggle, and its badge names the claim in words
+    ("1-month low") so the colour has something to agree with. The sheet is where
+    you look at the shape itself, and there position and direction come apart: at
+    41% of its 12-month range this fund is nowhere near its low, so the old rule
+    painted a line that visibly falls 3% across the year green. Colour that
+    contradicts the slope under it is worse than no colour.
+
+    The two rules therefore disagree on purpose, and the badge above the chart can
+    be red while a longer window below it is green. What keeps that honest is that
+    neither is colour-only: the badge prints its window and direction as text, and
+    the table under the chart prints this net change per window as a signed
+    percentage. */
+const spanTone = s => (s && s.net < -FLAT_NET) ? "low" : "high";
 
 /** A single-series line, as one static SVG.
 
@@ -2214,6 +2342,16 @@ function pnum(n, ccy) {
   return (c === "INR" ? "₹" : c === "USD" ? "$" : "") + PNUM[c].format(Number(n) || 0);
 }
 
+/* One decimal, and the sign always printed: "3.4%" and "+3.4%" are the same
+   number, but only the second one is a direction, and direction is the entire
+   reason this column exists. A move that rounds to 0.0% gets no sign at all
+   rather than a "+" it has not earned. A true minus rather than a hyphen, which
+   at tabular width sits high and short beside the plus it has to line up with. */
+function pctSigned(n) {
+  const p = (Number(n) || 0) * 100;
+  return (p > 0.05 ? "+" : p < -0.05 ? "−" : "") + Math.abs(p).toFixed(1) + "%";
+}
+
 /* Drawn at the container's own pixel width, so nothing is scaled: a viewBox that
    stretched to fit would take 11px axis text down to 7px on a 375px phone, which
    is the sort of thing that looks fine in a screenshot at desktop width and is
@@ -2274,7 +2412,7 @@ function drawSheetChart(host, v, spanKey) {
 
   host.innerHTML = `
     <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"
-      aria-label="${esc(v.name)}, ${span.label} price history: low ${pnum(span.lo, v.ccy)}, high ${pnum(span.hi, v.ccy)}, latest ${endLabel}. The same figures are in the table below.">
+      aria-label="${esc(v.name)}, ${span.label} price history: ${pctSigned(span.net)} over the window, low ${pnum(span.lo, v.ccy)}, high ${pnum(span.hi, v.ccy)}, latest ${endLabel}. The same figures are in the table below.">
       ${gridline(span.hi, "hi", pnum(span.hi, v.ccy) + " high")}
       ${gridline(span.lo, "lo", pnum(span.lo, v.ccy) + " low")}
       <path class="parea" d="${area}"/>
@@ -2352,32 +2490,45 @@ function priceSheet(id) {
 
     <div class="psrow">
       <div class="seg" id="ps-seg" role="group" aria-label="Window">
+        ${/* Uppercase, because "12M" beside "3M" is a unit and "12m" reads as a
+              typo for metres. The keys stay lowercase in the data — they are
+              identifiers, and casing them at the edge keeps the one place that
+              cares about how they look separate from the many that compare them. */""}
         ${v.spans.map(s => `<button type="button" data-span="${s.key}"
-          aria-pressed="${s.key === v.ctx.key}">${s.key}</button>`).join("")}
+          aria-pressed="${s.key === v.ctx.key}">${s.key.toUpperCase()}</button>`).join("")}
       </div>
     </div>
 
-    ${/* One tone for the whole sheet, not one per selected window: the badge above
-          and the line below have to be the same colour or they read as two
-          different verdicts on one price. Which window caused it is in the table,
-          where the marked cell says so precisely. */""}
-    <div class="chartbox tone-${tone}" id="ps-chart"></div>
+    ${/* The chart's tone follows the SELECTED window, not the instrument: switch to
+          1M and the line is coloured by that month's own low/high. The badge above
+          keeps the instrument's overall verdict, so the two can disagree — which is
+          the point, and why the badge always prints the window it is talking about
+          ("3-month low"). Between them, the table below marks the exact cell that
+          made each claim, so no colour here is the only way to read one. */""}
+    <div class="chartbox tone-${spanTone(v.ctx)}" id="ps-chart"></div>
 
     <table class="grid pspans">
-      <thead><tr><th>Window</th><th>Low</th><th>High</th><th>Position</th></tr></thead>
+      <thead><tr><th>Window</th><th>Change</th><th>Low</th><th>High</th><th>Position</th></tr></thead>
       ${/* data-label on every cell but the first: under 640px the stylesheet drops
             the thead and prints these instead, so a stacked row still says which
             number is the low and which the high. */""}
       <tbody>${v.spans.map(s => `<tr>
         <td>${s.label}</td>
+        ${/* The chart's colour, written out — so the one thing the line is coloured
+              by is also readable as a number, and by someone who cannot tell the
+              two colours apart. Signed always, including the plus: "3.4%" and
+              "+3.4%" are the same number but only one of them is a direction. */""}
+        <td data-label="Change">${pctSigned(s.net)}</td>
         <td data-label="Low"  class="${s.dir === "low" ? "mark" : ""}">${pnum(s.lo, v.ccy)}</td>
         <td data-label="High" class="${s.dir === "high" ? "mark" : ""}">${pnum(s.hi, v.ccy)}</td>
         <td data-label="Position">${Math.round(s.pos * 100)}%${s.wide ? "" : " · flat"}</td>
       </tr>`).join("")}</tbody>
     </table>
-    <p class="hint" style="margin-top:9px">Position is where today sits between that window's
-      low and high. A window whose whole range is under 2% is marked flat — being at the
-      "bottom" of a range that never moved is not a low.</p>
+    <p class="hint" style="margin-top:9px">Change is first close to last, and it is what
+      colours the chart: red when the line ends below where it started. Position is a
+      different question — where today sits between that window's low and high — and it is
+      what the badge above uses. A window whose whole range is under 2% is marked flat,
+      because being at the "bottom" of a range that never moved is not a low.</p>
 
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Close</button>
@@ -2389,6 +2540,9 @@ function priceSheet(id) {
     function draw(key) {
       m.querySelectorAll("#ps-seg [data-span]").forEach(el =>
         el.setAttribute("aria-pressed", String(el.dataset.span === key)));
+      /* The same fallback drawSheetChart uses, so the colour and the line can
+         never end up describing different windows. */
+      host.className = "chartbox tone-" + spanTone(v.spans.find(s => s.key === key) || v.ctx);
       drawSheetChart(host, v, key);
     }
     m.querySelectorAll("#ps-seg [data-span]").forEach(btn => btn.onclick = () => draw(btn.dataset.span));
@@ -2451,15 +2605,27 @@ function renderDash() {
     return;
   }
 
-  const rows = S.buckets.map(b => ({ b, L: ledgerOf(b) }));
-  rows.sort((x, y) => {
-    const d = RANK[statusOf(x.L).key] - RANK[statusOf(y.L).key];
-    return d || (y.L.pending - x.L.pending);
+  const rows = S.buckets.map(b => {
+    const L = ledgerOf(b);
+    return { b, L, s: buyScore(b, L) };
   });
+  /* Pending then name after the score, so the order is stable across renders:
+     two buckets in the same tier with the same backlog and no price feed would
+     otherwise swap places on every edit. */
+  rows.sort((x, y) => y.s.score - x.s.score
+    || y.L.pending - x.L.pending
+    || x.b.name.localeCompare(y.b.name));
 
-  const card = ({ b, L }) => {
-    const st = statusOf(L);
+  const act = rows.filter(r => r.s.ranked);
+  const rest = rows.filter(r => !r.s.ranked);
+  /* Three highlighted out of a long list is a shortlist; three out of four is
+     just a differently-coloured list, so a short list highlights only its head. */
+  const picks = act.length > 4 ? 3 : Math.min(1, act.length);
+
+  const card = ({ b, L, s }, i) => {
+    const st = s.st;
     const pct = L.capAmount ? Math.min(100, L.pending / L.capAmount * 100) : 0;
+    const pick = i > -1 && i < picks;
 
     /* Four lines of prose came off this card: the fund's full name under the
        amount, the "oldest budget from July · waiting 3 months" trail, and the
@@ -2470,11 +2636,12 @@ function renderDash() {
        badge that already says "3 months behind" in words. The age is still on
        the meter (the fill is pending against the cap) and the exact months are
        one tap away on the buy sheet, which lists them individually. */
-    return `<article class="card glass">
+    return `<article class="card glass${pick ? " pick" : ""}">
       <div class="card-head">
         <div>
           <div class="nm">${esc(b.name)}</div>
-          <div class="sub">${money(L.monthly, L.ccy)}/month</div>
+          <div class="sub">${money(L.monthly, L.ccy)}/month<span class="chip">${KIND_TAG[kindOf(b)]}</span>${
+            i === 0 ? `<span class="tag">Buy first</span>` : ""}</div>
         </div>
         <span class="status st-${st.key}" style="--st:var(${st.st})"><span class="ic">${st.ic}</span>${st.label}</span>
       </div>
@@ -2507,51 +2674,25 @@ function renderDash() {
     </article>`;
   };
 
-  /* Grouped by category, always in KIND_ORDER — funds, then Indian stocks, then
-     US stocks — rather than by whatever is most urgent, because the order of the
-     sections is the one thing on this screen that should never move. Inside a
-     section the existing sort still applies, so the bucket that needs attention
-     is the first card under its own heading. Empty sections are omitted: an
-     "Indian Stocks (0)" header is a header about nothing.
+  /* One list in buyScore order, and the three category sections are gone. A
+     heading answered "what kind is this", which the chip on every card now
+     answers without splitting the screen into three separately-sorted islands —
+     where the single most urgent bucket in the file could sit below the fold under
+     the third heading. Category is still how the Plan tab lists things, which is
+     where you go to read the plan rather than to act on it.
 
-     <details> rather than a click handler on a div: the disclosure triangle, the
-     keyboard behaviour, Enter and Space, and find-in-page opening a closed
-     section all come free and none of it is code here. */
-  host.innerHTML = KIND_ORDER.map(k => {
-    const inK = rows.filter(r => kindOf(r.b) === k);
-    if (!inK.length) return "";
-    /* Collapsed, a section still has to be worth reading, so the summary carries
-       what the cards under it would have said: how many, and how much is waiting.
-       Per currency and never summed — same reason as the hero. */
-    const held = ["INR", "USD"].filter(c => inK.some(r => r.L.ccy === c));
-    const tot = held.map(c =>
-      money(inK.filter(r => r.L.ccy === c).reduce((t, r) => t + r.L.pending, 0), c)).join(" · ");
-    return `<details class="group" data-gk="${k}" ${groupOpen(k) ? "open" : ""}>
-      <summary>
-        <span class="gnm">${KINDS[k]}</span>
-        <span class="gct">${inK.length}</span>
-        <span class="gtot">${tot} pending</span>
-      </summary>
-      <div class="cards">${inK.map(card).join("")}</div>
-    </details>`;
-  }).join("");
-
-  /* Every edit re-renders this whole section, so a section you collapsed would
-     spring open the moment you recorded a buy. The open set therefore has to
-     outlive the markup — and it is per-device view state, not part of the plan,
-     so it lives in its own localStorage key rather than in S, where sync would
-     carry your phone's collapsed sections to your laptop. */
-  host.querySelectorAll("details.group").forEach(d => d.addEventListener("toggle", () => {
-    const closed = new Set(lsGet(DASH_GROUPS, []) || []);
-    if (d.open) closed.delete(d.dataset.gk); else closed.add(d.dataset.gk);
-    try { localStorage.setItem(DASH_GROUPS, JSON.stringify([...closed])); } catch (e) {}
-  }));
+     Buckets with nothing pending are not in the ranking at all, so they sit under
+     a rule at the bottom instead of being interleaved by score. */
+  host.innerHTML =
+    (act.length ? `<p class="ranknote">Ordered by what to buy next: how overdue the money is first,
+         then how the price is sitting inside its own range.${
+         picks > 1 ? ` The top ${picks} are highlighted.` : ""}</p>
+       <div class="cards">${act.map(card).join("")}</div>` : "")
+  + (rest.length ? `<div class="listrule">
+         <span>Nothing pending</span><span class="ct">${rest.length}</span>
+       </div>
+       <div class="cards">${rest.map(r => card(r, -1)).join("")}</div>` : "");
 }
-
-/* Stored as the CLOSED set, so a category added later — or a fresh device —
-   defaults to open rather than to invisible. */
-const DASH_GROUPS = "deployment-tracker-groups";
-const groupOpen = k => !(lsGet(DASH_GROUPS, []) || []).includes(k);
 
 /* ============================================================
    7. Plan view
